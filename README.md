@@ -1,2 +1,18 @@
 # nlnet
 Analysis of the opensource codebases of NLnet sponsored projects.
+
+## Objectives
+The main objective is to be able to identify characteristics of existing and current testing practices recorded in the opensource repos of projects that have received funding from NLnet foundation. These details may then enable us to identify ways to help distill approaches that may help several of these projects in tandem (concurrently).
+
+## Data structure
+The columns are: `project code, public page, code repository`
+
+Some projects have multiple repos, these are on their own row in the dataset.
+
+The source file is in TSV (Tab Separated Values) format.
+
+## Structure of this repo
+In general, much of the work will be identified in this repo's https://github.com/commercetest/nlnet/issues, and various more general notes will be recorded in Wiki pages athttps://github.com/commercetest/nlnet/wiki 
+
+## Related projects
+Work on the data analysis of NLnet projects is also maintained in: https://codeberg.org/NGI0Review/harvest (and the test coverage tracked online at https://artifacts.nlnet.nl/harvest/main/coverage/). In future some or all of this repo's work may migrate there, for the moment this repo facilitates exploration and experimentation.
