@@ -12,7 +12,15 @@ Some projects have multiple repos, these are on their own row in the dataset.
 The source file is in TSV (Tab Separated Values) format.
 
 ## Structure of this repo
-In general, much of the work will be identified in this repo's https://github.com/commercetest/nlnet/issues, and various more general notes will be recorded in Wiki pages athttps://github.com/commercetest/nlnet/wiki 
+In general, much of the work will be identified in this repo's https://github.com/commercetest/nlnet/issues, and various more general notes will be recorded in Wiki pages at https://github.com/commercetest/nlnet/wiki 
+
+## Runtime environment
+I'm using miniforge to manage the python environment including packages.
+
+```
+conda create --name commercetest-nlnet python=3.10 pandas
+conda activate commercetest-nlnet
+```
 
 ## Related projects
 Work on the data analysis of NLnet projects is also maintained in: https://codeberg.org/NGI0Review/harvest (and the test coverage tracked online at https://artifacts.nlnet.nl/harvest/main/coverage/). In future some or all of this repo's work may migrate there, for the moment this repo facilitates exploration and experimentation.
