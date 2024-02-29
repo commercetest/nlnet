@@ -30,8 +30,8 @@ else:
     raise ValueError("Unexpected number of columns in the file.")
 
 # Forward fill the 'a' and 'b' columns to fill the missing values
-df['a'] = df['a'].fillna(method='ffill')
-df['b'] = df['b'].fillna(method='ffill')
+df['a'] = df['a'].ffill()
+df['b'] = df['b'].ffill()
 
 # Ensure the final DataFrame is in the correct format
 df = df[['a', 'b', 'c']]  # This is just to ensure the column order
