@@ -1,4 +1,10 @@
-"""Second attempt to correctly process single column rows"""
+"""Second attempt to correctly process single column rows.
+
+I'd tried using 
+    y = df.iloc[:,-1:] 
+to only obtain the last column in the dataframe in tsv_parsing_experiment.py
+but that didn't work. This code is the result.
+"""
 import pandas as pd
 
 # Define the path to your TSV file
