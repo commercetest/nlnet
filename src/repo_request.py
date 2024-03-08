@@ -3,34 +3,35 @@ import numpy as np
 import os
 import requests
 import json
+from loguru import logger
 
 def load_data(filepath):
     try:
         df = pd.read_csv(filepath)
-        print(f'Dataframe shape: {df.shape}')
-        print(f'Dataframe columns: {df.columns.tolist()}')
+        logger.info(f'Dataframe shape: {df.shape}')
+        logger.info(f'Dataframe columns: {df.columns.tolist()}')
         df.info()
         return df
 
     except Exception as e:
-        print(f'Error Loading data: {e}')
+        logger.error(f'Error Loading data from path {filepath} with exception {e}')
     return None
 
 def check_and_clean_data(df):
     # Checking for null values
     null_counts = df.isnull().sum()
     if np.any(null_counts):
-        print("Null values found:")
-        print(null_counts[null_counts > 0])
+        logger.info("Null values found:")
+        logger.info(null_counts[null_counts > 0])
     else:
-        print("No null values found.")
+        logger.info("No null values found.")
 
     # Checking for duplicates
     duplicates = df.duplicated().sum()
     if duplicates:
-        print(f"Number of duplicate rows: {duplicates}")
+        logger.info(f"Number of duplicate rows: {duplicates}")
     else:
-        print("No duplicate rows found.")
+        logger.info("No duplicate rows found.")
 
 def construct_search_request(repo_path):
     # constructing the search query
@@ -42,12 +43,12 @@ def construct_search_request(repo_path):
 
 def extract_reponame_and_username(repo_path):
     parts = repo_path.split('/')
-    print(parts)
+    logger.info(parts)
     repo_path = '/'.join(parts[-2:])  # This joins the last two parts using '/'
     return repo_path
 
 def main():
-    data_path = 'df'
+    data_path = '../data/df'
     # Loading the dataframe
     df = load_data(data_path)
 
@@ -59,7 +60,6 @@ def main():
 
     # I will only consider github.com domain
     github_df = df[df['repourl'].str.contains('github.com')]
-    df.to_csv('github_df', index = False)
 
     # Accessing the environmental variable (PAT)
     pat = os.getenv('MY_PAT')
@@ -71,12 +71,12 @@ def main():
                }
     # Some of the URLs end with "/". I need to remove them.
     github_df['repourl'] = github_df['repourl'].str.rstrip('/')
-    df.to_csv('github_df', index=False)
+    df.to_csv('../data/github_df.csv', index=False)
 
     # I'm focusing on one repo for now
     index_for_manual_check = 11
     repo_path = github_df['repourl'][index_for_manual_check]
-    print(f'repo_path is :  {repo_path}')
+    logger.info(f'repo_path is :  {repo_path}')
 
     # Extracting the 'username/repository':
     repo_path = extract_reponame_and_username(repo_path)
@@ -90,19 +90,18 @@ def main():
     if response.status_code == 200:
         search_results = response.json()
         count_test_files = len(search_results['items'])
-        print(f'Number of "test" files found: {count_test_files}')
+        logger.info(f'Number of "test" files found: {count_test_files}')
 
         for item in search_results['items']:
-            print(f'File Name: {item["name"]}, Path: {item["path"]}')
+            logger.info(f'File Name: {item["name"]}, Path: {item["path"]}')
     else:
-        print(f'Failed to search, status code: {response.status_code}')
-        print("Response text:", response.text)
+        logger.info(f'Failed to search, status code: {response.status_code}')
+        logger.info("Response text:", response.text)
 
-    print("X-RateLimit-Limit:", response.headers.get("X-RateLimit-Limit"))
-    print("X-RateLimit-Remaining:", response.headers.get("X-RateLimit-Remaining"))
-    print("X-RateLimit-Reset:", response.headers.get("X-RateLimit-Reset"))
+    logger.info("X-RateLimit-Limit:", response.headers.get("X-RateLimit-Limit"))
+    logger.info("X-RateLimit-Remaining:", response.headers.get("X-RateLimit-Remaining"))
+    logger.info("X-RateLimit-Reset:", response.headers.get("X-RateLimit-Reset"))
 
-    return github_df
 
 if __name__ == '__main__':
-    github_df = main()
+    main()
