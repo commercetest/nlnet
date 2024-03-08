@@ -1,4 +1,6 @@
 pandas~=2.0.3
-
 numpy~=1.24.4
 requests~=2.31.0
+git add
+backoff~=2.2.1
+requests-ratelimiter~=0.6.0
