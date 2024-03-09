@@ -43,16 +43,26 @@ def check_and_clean_data(df):
 def extract_reponame_and_username(repo_path):
     parts = repo_path.split('/')
     logger.info(parts)
-    repo_path = '/'.join(parts[-2:])  # This joins the last two parts using '/'
+
+    # Not all repourls are correct, some point to just the user and others to the issues page
+    index_of_github = parts.index('github.com')
+    if len(parts) <= index_of_github + 2:
+        logger.warning(f'repopath: {repo_path} does not contain a username and repo')
+        return ""
+
+    repo_path = '/'.join(parts[index_of_github + 1: index_of_github + 3])
     return repo_path
 
 
-def get_test_file_count(repo_path, headers):
-    session = LimiterSession(per_second=0.1)
+def get_test_file_count(repourl, headers):
+    session = LimiterSession(per_minute=5)
     test_files = []
     page = 1
-    repo_path = extract_reponame_and_username(repo_path)
+    repo_path = extract_reponame_and_username(repourl)
     more_pages = True
+    if not repo_path:
+        logger.warning(f"Repo: {repourl} doesn't have a username and reponame, skipping.")
+        more_pages = False
 
     while more_pages:
         # Construct the search query with pagination
@@ -76,7 +86,7 @@ def get_test_file_count(repo_path, headers):
                     more_pages = False  # Exit loop if there are no more pages
 
     test_file_count = len(test_files)
-    return test_file_count, test_files, response
+    return test_file_count
 
 
 def make_github_request(search_url, session, headers, attempt_num=0):
@@ -126,10 +136,9 @@ def main():
         # I will only consider github.com domain
         github_df = df[df['repourl'].str.contains('github.com')]
 
-
         # Some of the URLs end with "/". I need to remove them.
         github_df['repourl'] = github_df['repourl'].str.rstrip('/')
-        df.to_csv('../data/github_df.csv', index=False)
+        github_df.to_csv(github_df_file_path, index=True)
 
 
     if 'testfilecount' not in github_df.columns:
@@ -142,9 +151,9 @@ def main():
 
     for index, row in github_df.iterrows():
         if github_df.loc[index,'testfilecount'] == -1:
-            repo_path = row['repourl']
-            logger.info(f'Analysing repo {repo_path}')
-            test_file_count, _, _ = get_test_file_count(repo_path, headers)
+            repourl = row['repourl']
+            logger.info(f'Analysing repo {repourl}')
+            test_file_count = get_test_file_count(repourl, headers)
             github_df.at[index, 'testfilecount'] = test_file_count
             github_df.to_csv(github_df_file_path, index=True)
 
@@ -152,8 +161,8 @@ def main():
             continue
 
 
-    return github_df, test_file_count
+    return github_df
 
 
 if __name__ == '__main__':
-    github_df, test_file_count = main()
+    github_df = main()
