@@ -1,9 +1,13 @@
-import pandas as pd
-import numpy as np
+import logging
 import os
-import requests
+
 import json
+import numpy as np
 from loguru import logger
+import pandas as pd
+from requests_ratelimiter import LimiterSession
+import requests
+
 
 def load_data(filepath):
     try:
@@ -16,6 +20,7 @@ def load_data(filepath):
     except Exception as e:
         logger.error(f'Error Loading data from path {filepath} with exception {e}')
     return None
+
 
 def check_and_clean_data(df):
     # Checking for null values
@@ -33,19 +38,47 @@ def check_and_clean_data(df):
     else:
         logger.info("No duplicate rows found.")
 
-def construct_search_request(repo_path):
-    # constructing the search query
-    search_query = f'test in:path -filename:.txt -filename:.md repo:{repo_path}'
-    payload = {'q': search_query, 'type': 'code'}
-    # The URL for the Search Code endpoint
-    search_url = f'https://api.github.com/search/code'
-    return payload, search_url
 
 def extract_reponame_and_username(repo_path):
     parts = repo_path.split('/')
     logger.info(parts)
     repo_path = '/'.join(parts[-2:])  # This joins the last two parts using '/'
     return repo_path
+
+
+def get_test_file_count(repo_path, headers):
+    session = LimiterSession(per_second=0.2)
+    test_files = []
+    page = 1
+    repo_path = extract_reponame_and_username(repo_path)
+    more_pages = True
+
+    while more_pages:
+        # Construct the search query with pagination
+        search_url = f"https://api.github.com/search/code?q=test+in:path+" \
+                     f"-filename:.txt+-filename:.md+-filename:.html+-filename:.xml+" \
+                     f"-filename:.json+repo:{repo_path}&page={page}"
+        logger.debug(f"Search Url: {search_url}")
+        response = session.get(search_url, headers=headers)
+
+        if response.status_code == 200:
+            search_results = response.json()
+            test_files.extend(search_results['items'])
+            for item in search_results['items']:
+                logger.info(f'File Name: {item["name"]}, Path: {item["path"]}')
+
+            # Check for the 'next' link in the response headers for more pages
+            if 'next' in response.links:
+                page += 1
+            else:
+                more_pages = False  # Exit loop if there are no more pages
+        else:
+            logger.error(f"Failed to search, status code: {response.status_code}")
+            logger.error("Response text:", response.text)
+            more_pages = False
+    test_file_count = len(test_files)
+    return test_file_count, test_files, response
+
 
 def main():
     data_path = '../data/df'
@@ -66,42 +99,25 @@ def main():
 
     # Make the authenticated request
     headers = {
-        'Authorization' : f'token {pat}',
+        'Authorization': f'token {pat}',
         'X-GitHub-Api-Version': '2022-11-28'
-               }
+    }
     # Some of the URLs end with "/". I need to remove them.
     github_df['repourl'] = github_df['repourl'].str.rstrip('/')
     df.to_csv('../data/github_df.csv', index=False)
 
-    # I'm focusing on one repo for now
-    index_for_manual_check = 11
-    repo_path = github_df['repourl'][index_for_manual_check]
-    logger.info(f'repo_path is :  {repo_path}')
+    # Creating a new column is the github_df to store the test file counts:
+    github_df['testfilecount'] = -1
 
-    # Extracting the 'username/repository':
-    repo_path = extract_reponame_and_username(repo_path)
+    for index, row in github_df.head(3).iterrows():
+        repo_path = row['repourl']
+        logger.info(f'Analysing repo {repo_path}')
+        test_file_count, _, _ = get_test_file_count(repo_path, headers)
+        github_df.at[index, 'testfilecount'] = test_file_count
+        df.to_csv('../data/github_df.csv', index=True)
 
-    # Constructing the search request
-    payload, search_url = construct_search_request(repo_path)
-
-    # Sending the GET request to the Github API
-    response = requests.get(search_url, headers=headers, params=payload)
-
-    if response.status_code == 200:
-        search_results = response.json()
-        count_test_files = len(search_results['items'])
-        logger.info(f'Number of "test" files found: {count_test_files}')
-
-        for item in search_results['items']:
-            logger.info(f'File Name: {item["name"]}, Path: {item["path"]}')
-    else:
-        logger.info(f'Failed to search, status code: {response.status_code}')
-        logger.info("Response text:", response.text)
-
-    logger.info("X-RateLimit-Limit:", response.headers.get("X-RateLimit-Limit"))
-    logger.info("X-RateLimit-Remaining:", response.headers.get("X-RateLimit-Remaining"))
-    logger.info("X-RateLimit-Reset:", response.headers.get("X-RateLimit-Reset"))
+    return github_df, test_file_count
 
 
 if __name__ == '__main__':
-    main()
+    github_df, test_file_count = main()
