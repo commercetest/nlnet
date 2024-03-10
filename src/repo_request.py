@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 
 import json
 import numpy as np
@@ -42,16 +43,26 @@ def check_and_clean_data(df):
 def extract_reponame_and_username(repo_path):
     parts = repo_path.split('/')
     logger.info(parts)
-    repo_path = '/'.join(parts[-2:])  # This joins the last two parts using '/'
+
+    # Not all repourls are correct, some point to just the user and others to the issues page
+    index_of_github = parts.index('github.com')
+    if len(parts) <= index_of_github + 2:
+        logger.warning(f'repopath: {repo_path} does not contain a username and repo')
+        return ""
+
+    repo_path = '/'.join(parts[index_of_github + 1: index_of_github + 3])
     return repo_path
 
 
-def get_test_file_count(repo_path, headers):
-    session = LimiterSession(per_second=0.2)
+def get_test_file_count(repourl, headers):
+    session = LimiterSession(per_minute=5)
     test_files = []
     page = 1
-    repo_path = extract_reponame_and_username(repo_path)
+    repo_path = extract_reponame_and_username(repourl)
     more_pages = True
+    if not repo_path:
+        logger.warning(f"Repo: {repourl} doesn't have a username and reponame, skipping.")
+        more_pages = False
 
     while more_pages:
         # Construct the search query with pagination
@@ -59,40 +70,43 @@ def get_test_file_count(repo_path, headers):
                      f"-filename:.txt+-filename:.md+-filename:.html+-filename:.xml+" \
                      f"-filename:.json+repo:{repo_path}&page={page}"
         logger.debug(f"Search Url: {search_url}")
-        response = session.get(search_url, headers=headers)
 
-        if response.status_code == 200:
+        response = make_github_request(search_url=search_url, session=session, headers=headers)
+        if response:
             search_results = response.json()
-            test_files.extend(search_results['items'])
-            for item in search_results['items']:
-                logger.info(f'File Name: {item["name"]}, Path: {item["path"]}')
-
-            # Check for the 'next' link in the response headers for more pages
-            if 'next' in response.links:
-                page += 1
+            if 'items' not in search_results:
+                logger.error(f"Unable to find 'items' in search_results. Got {search_results}")
             else:
-                more_pages = False  # Exit loop if there are no more pages
-        else:
-            logger.error(f"Failed to search, status code: {response.status_code}")
-            logger.error("Response text:", response.text)
-            more_pages = False
-    test_file_count = len(test_files)
-    return test_file_count, test_files, response
+                test_files.extend(search_results['items'])
+                for item in search_results['items']:
+                    logger.info(f'File Name: {item["name"]}, Path: {item["path"]}')
+                if 'next' in response.links:
+                    page += 1
+                else:
+                    more_pages = False  # Exit loop if there are no more pages
 
+    test_file_count = len(test_files)
+    return test_file_count
+
+
+def make_github_request(search_url, session, headers, attempt_num=0):
+    if attempt_num > 10:
+        logger.error(f"Reached max attempt count of 10 for {search_url}.")
+        return
+
+    logger.info(f'Making attempt num: {attempt_num} for the url: {search_url}')
+    response = session.get(search_url, headers=headers)
+    if response.status_code != 200:
+        logger.warning(f'Received status: {response.status_code} for {search_url}. '
+                       f'Response text: {response.text} '
+                       f'Sleeping for 30 seconds.')
+        time.sleep(61)
+        return make_github_request(search_url, session, headers, attempt_num + 1)
+
+    return response
 
 def main():
-    data_path = '../data/df'
-    # Loading the dataframe
-    df = load_data(data_path)
-
-    # Checking the Null and duplicate values
-    check_and_clean_data(df)
-
-    # I will keep the first occurrence of each duplicate row and remove the others:
-    df = df.drop_duplicates(keep='first')
-
-    # I will only consider github.com domain
-    github_df = df[df['repourl'].str.contains('github.com')]
+    github_df_file_path = '../data/github_df.csv'
 
     # Accessing the environmental variable (PAT)
     pat = os.getenv('MY_PAT')
@@ -101,23 +115,54 @@ def main():
     headers = {
         'Authorization': f'token {pat}',
         'X-GitHub-Api-Version': '2022-11-28'
-    }
-    # Some of the URLs end with "/". I need to remove them.
-    github_df['repourl'] = github_df['repourl'].str.rstrip('/')
-    df.to_csv('../data/github_df.csv', index=False)
+              }
 
-    # Creating a new column is the github_df to store the test file counts:
-    github_df['testfilecount'] = -1
+    if os.path.exists(github_df_file_path):
+        logger.info(f"Found existing file at: {github_df_file_path}")
+        github_df = pd.read_csv(github_df_file_path)
 
-    for index, row in github_df.head(3).iterrows():
-        repo_path = row['repourl']
-        logger.info(f'Analysing repo {repo_path}')
-        test_file_count, _, _ = get_test_file_count(repo_path, headers)
-        github_df.at[index, 'testfilecount'] = test_file_count
-        df.to_csv('../data/github_df.csv', index=True)
+    else:
+        logger.info(f"Could not find existing file at '{github_df_file_path}', creating a new file.")
+        data_path = '../data/df'
+        # Loading the dataframe
+        df = load_data(data_path)
 
-    return github_df, test_file_count
+        # Checking the Null and duplicate values
+        check_and_clean_data(df)
+
+        # I will keep the first occurrence of each duplicate row and remove the others:
+        df = df.drop_duplicates(keep='first')
+
+        # I will only consider github.com domain
+        github_df = df[df['repourl'].str.contains('github.com')]
+
+        # Some of the URLs end with "/". I need to remove them.
+        github_df['repourl'] = github_df['repourl'].str.rstrip('/')
+        github_df.to_csv(github_df_file_path, index=True)
+
+
+    if 'testfilecount' not in github_df.columns:
+        logger.info(f"Column 'testfilecount' not found in '{github_df_file_path}', adding it.")
+        github_df['testfilecount'] = -1
+    else:
+        complete = github_df[github_df['testfilecount'] != -1]
+        logger.info(f"Resuming processing, out of {len(github_df)} rows {len(complete)} are complete "
+                    f"leaving {len(github_df) - len(complete)} to process.")
+
+    for index, row in github_df.iterrows():
+        if github_df.loc[index,'testfilecount'] == -1:
+            repourl = row['repourl']
+            logger.info(f'Analysing repo {repourl}')
+            test_file_count = get_test_file_count(repourl, headers)
+            github_df.at[index, 'testfilecount'] = test_file_count
+            github_df.to_csv(github_df_file_path, index=True)
+
+        else:
+            continue
+
+
+    return github_df
 
 
 if __name__ == '__main__':
-    github_df, test_file_count = main()
+    github_df = main()
