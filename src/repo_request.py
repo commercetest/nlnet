@@ -1,13 +1,10 @@
-import logging
 import os
 import time
 
-import json
 import numpy as np
 from loguru import logger
 import pandas as pd
 from requests_ratelimiter import LimiterSession
-import requests
 
 
 def load_data(filepath):
@@ -110,6 +107,9 @@ def main():
 
     # Accessing the environmental variable (PAT)
     pat = os.getenv('MY_PAT')
+    if pat is None:
+        logger.error(f"MY_PAT environment variable needs setting with a valid Personal Access Token for github.com")
+        os._exit(os.EX_CONFIG)
 
     # Make the authenticated request
     headers = {
