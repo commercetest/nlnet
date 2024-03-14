@@ -4,6 +4,7 @@ import time
 import numpy as np
 from loguru import logger
 import pandas as pd
+from find_repo import git_codebase_root
 from requests_ratelimiter import LimiterSession
 
 
@@ -103,7 +104,8 @@ def make_github_request(search_url, session, headers, attempt_num=0):
     return response
 
 def main():
-    github_df_file_path = '../data/github_df.csv'
+    codebase_root = str(git_codebase_root(__file__))
+    github_df_file_path = codebase_root + '/data/github_df.csv'
 
     # Accessing the environmental variable (PAT)
     pat = os.getenv('MY_PAT')
@@ -123,7 +125,7 @@ def main():
 
     else:
         logger.info(f"Could not find existing file at '{github_df_file_path}', creating a new file.")
-        data_path = '../data/df'
+        data_path = codebase_root + 'data/df'
         # Loading the dataframe
         df = load_data(data_path)
 
