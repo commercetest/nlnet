@@ -87,7 +87,7 @@ def get_test_file_count(repourl, headers):
     return test_file_count
 
 
-def make_github_request(search_url, session, headers, attempt_num=0):
+def make_github_request(search_url, session, headers, attempt_num=1):
     if attempt_num > 10:
         logger.error(f"Reached max attempt count of 10 for {search_url}.")
         return
@@ -95,10 +95,11 @@ def make_github_request(search_url, session, headers, attempt_num=0):
     logger.info(f'Making attempt num: {attempt_num} for the url: {search_url}')
     response = session.get(search_url, headers=headers)
     if response.status_code != 200:
+        time_to_pause = (attempt_num * 2)
         logger.warning(f'Received status: {response.status_code} for {search_url}. '
                        f'Response text: {response.text} '
-                       f'Sleeping for 30 seconds.')
-        time.sleep(61)
+                       f'Sleeping for {time_to_pause} seconds.')
+        time.sleep(time_to_pause)
         return make_github_request(search_url, session, headers, attempt_num + 1)
 
     return response
