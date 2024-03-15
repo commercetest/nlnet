@@ -141,7 +141,7 @@ def main():
 
         # Some of the URLs end with "/". I need to remove them.
         github_df['repourl'] = github_df['repourl'].str.rstrip('/')
-        github_df.to_csv(github_df_file_path, index=True)
+        github_df.to_csv(github_df_file_path, index=False)
 
     # replace http with https
     github_df['repourl'] = github_df['repourl'].str.replace(r'^http\b', 'https', regex=True)
@@ -163,7 +163,7 @@ def main():
             logger.info(f'Analysing repo {repourl}')
             test_file_count = get_test_file_count(repourl, headers)
             github_df.at[index, 'testfilecount'] = test_file_count
-            github_df.to_csv(github_df_file_path, index=True)
+            github_df.to_csv(github_df_file_path, index=False)
 
         else:
             continue
