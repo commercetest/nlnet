@@ -163,6 +163,7 @@ cython_debug/
 *.csv
 *.tsv
 *.npy
+data/
 
 # MacOS files
 .DS_Store
