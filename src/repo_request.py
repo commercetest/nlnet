@@ -77,7 +77,7 @@ def get_test_file_count(repourl, headers):
             else:
                 test_files.extend(search_results['items'])
                 for item in search_results['items']:
-                    logger.info(f'File Name: {item["name"]}, Path: {item["path"]}')
+                    logger.debug(f'File Name: {item["name"]}, Path: {item["path"]}')
                 if 'next' in response.links:
                     page += 1
                 else:
@@ -125,7 +125,7 @@ def main():
 
     else:
         logger.info(f"Could not find existing file at '{github_df_file_path}', creating a new file.")
-        data_path = codebase_root + 'data/df'
+        data_path = codebase_root + '/data/df.csv'
         # Loading the dataframe
         df = load_data(data_path)
 
@@ -142,6 +142,11 @@ def main():
         github_df['repourl'] = github_df['repourl'].str.rstrip('/')
         github_df.to_csv(github_df_file_path, index=True)
 
+    # replace http with https
+    github_df['repourl'] = github_df['repourl'].str.replace(r'^http\b', 'https', regex=True)
+
+    # replace www.github.com with github.com
+    github_df['repourl'] = github_df['repourl'].str.replace(r'https?://(www\.)?', 'https://', regex=True)
 
     if 'testfilecount' not in github_df.columns:
         logger.info(f"Column 'testfilecount' not found in '{github_df_file_path}', adding it.")
