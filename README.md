@@ -22,5 +22,17 @@ conda create --name commercetest-nlnet python=3.10 pandas
 conda activate commercetest-nlnet
 ```
 
+For GitHub API queries this project uses a Personal Access Token (PAT).
+
+Generated a PAT for authentication with the Github API (Expiration 90 days Scopes → public_repo)
+
+Chose the endpoints:
+- Repositories Endpoint: To get information about repositories.
+- Contents Endpoint: To access the file structure of a repository.
+- Search Code Endpoint: To search within repositories for specific words or phrases.
+
+https://github.com/settings/tokens?type=beta
+
+
 ## Related projects
 Work on the data analysis of NLnet projects is also maintained in: https://codeberg.org/NGI0Review/harvest (and the test coverage tracked online at https://artifacts.nlnet.nl/harvest/main/coverage/). In future some or all of this repo's work may migrate there, for the moment this repo facilitates exploration and experimentation.
