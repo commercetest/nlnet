@@ -35,4 +35,4 @@ print(df.iloc[0:31])
 # Save the dataframe as a CSV file
 curr_dir = Path(__file__).parent.parent
 path_to_data_folder = str(curr_dir) + '/data'
-df.to_csv(path_to_data_folder + '/github_df.csv')
+df.to_csv(path_to_data_folder + '/github_df.csv', index=False)
