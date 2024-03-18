@@ -38,29 +38,25 @@ def check_and_clean_data(df):
         logger.info("No duplicate rows found.")
 
 
-def extract_reponame_and_username(repo_path):
-    parts = repo_path.split('/')
+def extract_owner_and_repo_names(repourl):
+    parts = repourl.split('/')
     logger.info(parts)
 
     # Not all repourls are correct, some point to just the user and others to the issues page
     index_of_github = parts.index('github.com')
     if len(parts) <= index_of_github + 2:
-        logger.warning(f'repopath: {repo_path} does not contain a username and repo')
+        logger.warning(f'repopath: {repo_path} does not contain both the owner and repo names')
         return ""
 
     repo_path = '/'.join(parts[index_of_github + 1: index_of_github + 3])
     return repo_path
 
 
-def get_test_file_count(repourl, headers):
+def get_test_file_count(repo_path, headers):
     session = LimiterSession(per_minute=5)
     test_files = []
     page = 1
-    repo_path = extract_reponame_and_username(repourl)
     more_pages = True
-    if not repo_path:
-        logger.warning(f"Repo: {repourl} doesn't have a username and reponame, skipping.")
-        more_pages = False
 
     while more_pages:
         # Construct the search query with pagination
@@ -68,7 +64,6 @@ def get_test_file_count(repourl, headers):
                      f"-filename:.txt+-filename:.md+-filename:.html+-filename:.xml+" \
                      f"-filename:.json+repo:{repo_path}&page={page}"
         logger.debug(f"Search Url: {search_url}")
-
 
         response = make_github_request(url=search_url, session=session, headers=headers)
         if response:
@@ -87,30 +82,27 @@ def get_test_file_count(repourl, headers):
     test_file_count = len(test_files)
     return test_file_count
 
-def get_latest_commit_info(repourl, headers):
+
+def get_latest_commit_info(repo_path, headers):
     session = LimiterSession(per_minute=5)
-    repo_path = extract_reponame_and_username(repourl)
-    if not repo_path:
-        logger.warning(f"Repo: {repourl} doesn't have a username and reponame, skipping.")
-        more_pages = False
-    else: 
-        # Get the commit hash
-        # As per: https://docs.github.com/en/rest/commits/commits?apiVersion=2022-11-28
-        # "https://api.github.com/repos/OWNER/REPO/commits"
-        commit_url = f"https://api.github.com/repos/{repo_path}/commits"
-        logger.debug(F"Commit Url: {commit_url}")
-        commit_response = make_github_request(url=commit_url, session=session, headers=headers)
-        if commit_response:
-            commit_results = commit_response.json()
-            commits = len(commit_results)
-            if 'sha' not in commit_results[0]:
-                logger.error(f"Unable to find commit 'sha' in the first commit results. Got {commit_results[0]}")
-            else:
-                html_url = commit_results[0]['html_url']
-                sha = commit_results[0]['sha']
-                logger.debug(f"sha: {sha}, html_url: {html_url}")
-                return sha, html_url
+    # Get the commit hash
+    # As per: https://docs.github.com/en/rest/commits/commits?apiVersion=2022-11-28
+    # "https://api.github.com/repos/OWNER/REPO/commits"
+    commit_url = f"https://api.github.com/repos/{repo_path}/commits"
+    logger.debug(F"Commit Url: {commit_url}")
+    commit_response = make_github_request(url=commit_url, session=session, headers=headers)
+    if commit_response:
+        commit_results = commit_response.json()
+        commits = len(commit_results)
+        if 'sha' not in commit_results[0]:
+            logger.error(f"Unable to find commit 'sha' in the first commit results. Got {commit_results[0]}")
+        else:
+            html_url = commit_results[0]['html_url']
+            sha = commit_results[0]['sha']
+            logger.debug(f"sha: {sha}, html_url: {html_url}")
+            return sha, html_url
   
+
 
 def make_github_request(url, session, headers, attempt_num=1):
     if attempt_num > 10:
@@ -186,13 +178,13 @@ def main():
         if github_df.loc[index,'testfilecount'] == -1:
             repourl = row['repourl']
             logger.info(f'Analysing repo {repourl}')
-            sha, html_url = get_latest_commit_info(repourl, headers)
+            repo_path = extract_owner_and_repo_names(repourl)
+            sha, html_url = get_latest_commit_info(repo_path, headers)
             logger.info(f'Latest git commit {sha} at {html_url}')
             #TODO save in the data array
-            test_file_count = get_test_file_count(repourl, headers)
+            test_file_count = get_test_file_count(repo_path, headers)
             github_df.at[index, 'testfilecount'] = test_file_count
             github_df.to_csv(github_df_file_path, index=False)
-
         else:
             continue
 
