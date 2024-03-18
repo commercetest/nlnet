@@ -69,7 +69,8 @@ def get_test_file_count(repourl, headers):
                      f"-filename:.json+repo:{repo_path}&page={page}"
         logger.debug(f"Search Url: {search_url}")
 
-        response = make_github_request(search_url=search_url, session=session, headers=headers)
+
+        response = make_github_request(url=search_url, session=session, headers=headers)
         if response:
             search_results = response.json()
             if 'items' not in search_results:
@@ -86,21 +87,45 @@ def get_test_file_count(repourl, headers):
     test_file_count = len(test_files)
     return test_file_count
 
+def get_latest_commit_info(repourl, headers):
+    session = LimiterSession(per_minute=5)
+    repo_path = extract_reponame_and_username(repourl)
+    if not repo_path:
+        logger.warning(f"Repo: {repourl} doesn't have a username and reponame, skipping.")
+        more_pages = False
+    else: 
+        # Get the commit hash
+        # As per: https://docs.github.com/en/rest/commits/commits?apiVersion=2022-11-28
+        # "https://api.github.com/repos/OWNER/REPO/commits"
+        commit_url = f"https://api.github.com/repos/{repo_path}/commits"
+        logger.debug(F"Commit Url: {commit_url}")
+        commit_response = make_github_request(url=commit_url, session=session, headers=headers)
+        if commit_response:
+            commit_results = commit_response.json()
+            commits = len(commit_results)
+            if 'sha' not in commit_results[0]:
+                logger.error(f"Unable to find commit 'sha' in the first commit results. Got {commit_results[0]}")
+            else:
+                html_url = commit_results[0]['html_url']
+                sha = commit_results[0]['sha']
+                logger.debug(f"sha: {sha}, html_url: {html_url}")
+                return sha, html_url
+  
 
-def make_github_request(search_url, session, headers, attempt_num=1):
+def make_github_request(url, session, headers, attempt_num=1):
     if attempt_num > 10:
-        logger.error(f"Reached max attempt count of 10 for {search_url}.")
+        logger.error(f"Reached max attempt count of 10 for {url}.")
         return
 
-    logger.info(f'Making attempt num: {attempt_num} for the url: {search_url}')
-    response = session.get(search_url, headers=headers)
+    logger.info(f'Making attempt num: {attempt_num} for the url: {url}')
+    response = session.get(url, headers=headers)
     if response.status_code != 200:
         time_to_pause = (attempt_num * 2)
-        logger.warning(f'Received status: {response.status_code} for {search_url}. '
+        logger.warning(f'Received status: {response.status_code} for {url}. '
                        f'Response text: {response.text} '
                        f'Sleeping for {time_to_pause} seconds.')
         time.sleep(time_to_pause)
-        return make_github_request(search_url, session, headers, attempt_num + 1)
+        return make_github_request(url, session, headers, attempt_num + 1)
 
     return response
 
@@ -161,6 +186,9 @@ def main():
         if github_df.loc[index,'testfilecount'] == -1:
             repourl = row['repourl']
             logger.info(f'Analysing repo {repourl}')
+            sha, html_url = get_latest_commit_info(repourl, headers)
+            logger.info(f'Latest git commit {sha} at {html_url}')
+            #TODO save in the data array
             test_file_count = get_test_file_count(repourl, headers)
             github_df.at[index, 'testfilecount'] = test_file_count
             github_df.to_csv(github_df_file_path, index=False)
