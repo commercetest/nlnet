@@ -5,3 +5,5 @@ loguru~=0.7.2
 backoff~=2.2.1
 requests-ratelimiter~=0.6.0
 rdflib~=7.0.0
+pre-commit~=3.6.2
+ruff~=0.3.4

@@ -45,7 +45,7 @@ def extract_owner_and_repo_names(repourl):
     # Not all repourls are correct, some point to just the user and others to the issues page
     index_of_github = parts.index('github.com')
     if len(parts) <= index_of_github + 2:
-        logger.warning(f'repopath: {repo_path} does not contain both the owner and repo names')
+        logger.warning(f'repopath: {repourl} does not contain both the owner and repo names')
         return ""
 
     repo_path = '/'.join(parts[index_of_github + 1: index_of_github + 3])
@@ -93,7 +93,8 @@ def get_latest_commit_info(repo_path, headers):
     commit_response = make_github_request(url=commit_url, session=session, headers=headers)
     if commit_response:
         commit_results = commit_response.json()
-        commits = len(commit_results)
+        # Note: there are 2 commits returned, not sure why...
+        #     commits = len(commit_results)
         if 'sha' not in commit_results[0]:
             logger.error(f"Unable to find commit 'sha' in the first commit results. Got {commit_results[0]}")
         else:
@@ -101,7 +102,7 @@ def get_latest_commit_info(repo_path, headers):
             sha = commit_results[0]['sha']
             logger.debug(f"sha: {sha}, html_url: {html_url}")
             return sha, html_url
-  
+
 
 
 def make_github_request(url, session, headers, attempt_num=1):
@@ -128,7 +129,7 @@ def main():
     # Accessing the environmental variable (PAT)
     pat = os.getenv('MY_PAT')
     if pat is None:
-        logger.error(f"MY_PAT environment variable needs setting with a valid Personal Access Token for github.com")
+        logger.error("MY_PAT environment variable needs setting with a valid Personal Access Token for github.com")
         os._exit(os.EX_CONFIG)
 
     # Make the authenticated request
