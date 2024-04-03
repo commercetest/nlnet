@@ -1,15 +1,15 @@
 """
 This code was initially generated using ChatGPT4 and then manually modified.
 
-The main aim is to experiment with creating a suitable data structure for the 
+The main aim is to experiment with creating a suitable data structure for the
 results to communicate with NLnet.
 
-The Efficacy Metric would be an internal metric to compare the suitability of 
+The Efficacy Metric would be an internal metric to compare the suitability of
 the various interrogation methods.
 
-MethodUsed emerged from the work in https://github.com/commercetest/nlnet/issues/7 
+MethodUsed emerged from the work in https://github.com/commercetest/nlnet/issues/7
 Manual means a person sought the information using similar heuristics to those
-described in issue 7 e.g. by using github's online search facility then 
+described in issue 7 e.g. by using github's online search facility then
 reviewing those search results.
 
 ChatGPT history: https://chat.openai.com/share/a01e8f98-74be-4c33-a8e0-1e6887b06a98

@@ -1,7 +1,7 @@
 """Second attempt to correctly process single column rows.
 
-I'd tried using 
-    y = df.iloc[:,-1:] 
+I'd tried using
+    y = df.iloc[:,-1:]
 to only obtain the last column in the dataframe in tsv_parsing_experiment.py
 but that didn't work. This code is the result.
 """
@@ -24,7 +24,7 @@ with open(file_path, 'r') as f:
             df = pd.concat( [df, pd.DataFrame([tuple(parsed_line)])], ignore_index=True)
         else:
             raise ValueError("Unexpected number of columns in the file.")
-        
+
 # Add column names, these will do for now
 df.columns = ['projectref', 'nlnetpage', 'repourl']
 
