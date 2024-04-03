@@ -7,3 +7,9 @@ requests-ratelimiter~=0.6.0
 rdflib~=7.0.0
 pre-commit~=3.6.2
 ruff~=0.3.4
+
+# added to run test reports and generate a badge with the result
+defusedxml~=0.7.1
+genbadge~=1.1.1
+pytest~=8.1.1
+pytest-html~=4.1.1
