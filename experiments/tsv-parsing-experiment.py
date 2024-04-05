@@ -9,32 +9,33 @@ Todo:
     * once this works, extract the parsing function into another file
       and incorporate it in an equivalent command-line module.
 """
+
 import pandas as pd
 
 # Define the path to your TSV file
-file_path = 'project_repos_from_jos_2024-feb-22.tsv'
+file_path = "project_repos_from_jos_2024-feb-22.tsv"
 
 # Load the TSV file, considering initially that it may have up to three columns
 # If there are less than 3 columns, the missing columns will be filled with NaN
-df = pd.read_csv(file_path, sep='\t', header=None)
+df = pd.read_csv(file_path, sep="\t", header=None)
 
 # Check the number of columns and adjust the DataFrame accordingly
 if len(df.columns) == 1:
-    df.columns = ['c']
-    df['a'] = pd.NA
-    df['b'] = pd.NA
-    df = df[['a', 'b', 'c']]  # Reorder the columns to match the expected format
+    df.columns = ["c"]
+    df["a"] = pd.NA
+    df["b"] = pd.NA
+    df = df[["a", "b", "c"]]  # Reorder the columns to match the expected format
 elif len(df.columns) == 3:
-    df.columns = ['a', 'b', 'c']
+    df.columns = ["a", "b", "c"]
 else:
     raise ValueError("Unexpected number of columns in the file.")
 
 # Forward fill the 'a' and 'b' columns to fill the missing values
-df['a'] = df['a'].ffill()
-df['b'] = df['b'].ffill()
+df["a"] = df["a"].ffill()
+df["b"] = df["b"].ffill()
 
 # Ensure the final DataFrame is in the correct format
-df = df[['a', 'b', 'c']]  # This is just to ensure the column order
+df = df[["a", "b", "c"]]  # This is just to ensure the column order
 
 # Show the resulting DataFrame
 print(df)

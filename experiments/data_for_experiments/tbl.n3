@@ -1,7 +1,7 @@
 # N3
 # Personal information in machine-readable form
 #
-# This (card.n3) is Tim Berners-Lee's FOAF file. It is a data file with the 
+# This (card.n3) is Tim Berners-Lee's FOAF file. It is a data file with the
 #    sort of information which would be on a home page.
 # This is RDF data.
 # This is written in Notation3 - see http://www.w3.org/DesignIssues/Notation3
@@ -83,7 +83,7 @@ card:i
 # Using FOAF vocabulary:
 
     a foaf:Person;
-    # The idea is that this is the one I would suggest you use and 
+    # The idea is that this is the one I would suggest you use and
     # I use for myself, which can lead to others.
     :preferredURI "http://www.w3.org/People/Berners-Lee/card#i"; # experimental
     foaf:mbox <mailto:timbl@w3.org>;
@@ -104,8 +104,8 @@ card:i
      foaf:nick "TimBL", "timbl";
      foaf:phone <tel:+1-(617)-253-5702>;
     #         foaf:schoolHomepage <http://www.w3.org/People/Berners-Lee>;
-    
-    
+
+
     foaf:account <http://twitter.com/timberners_lee>,
         <http://en.wikipedia.org/wiki/User:Timbl>,
         <http://identi.ca/timbl>;
@@ -133,26 +133,26 @@ card:i owl:sameAs <http://graph.facebook.com/512908782#>.   # FB RDF feed from 2
 
 
 # Pre 2012:
-#card:i is cert:identity of [ 
+#card:i is cert:identity of [
 #    a rsa:RSAPublicKey;
 #    rsa:public_exponent "65537"^cert:decimal ;
 #    rsa:modulus
 #
-#        """d7 a0 e9 1e ed dd cc 90 5d 5e cc d1 e4 12 ab 0c 
-#5b db e1 18 fa 99 b7 13 2d 91 54 52 f0 b0 9a f5 
-#eb c0 09 6c a1 db de ec 32 72 3f 5d dd 2b 05 56 
-#4e 2c e6 7e ff ba 8e 86 77 8e 11 4a 02 a3 90 7c 
-#2e 6c 6b 28 cf 16 fe e7 7d 0e f0 c4 4d 2e 3c cd 
-#3e 0b 6e 8c fd d1 97 e3 aa 86 ec 19 99 80 72 9a 
-#f4 45 1f 79 99 bc e5 5e b3 4b d5 a5 35 04 70 46 
-#37 00 f7 30 8e 37 2b db 6e 07 5e 0b b8 a8 db a9 
-#36 86 fa 4a e5 13 17 a4 43 82 bb 09 d0 92 94 c1 
-#68 5b 10 97 ff d5 9c 44 6a e5 67 fa ec e6 b6 aa 
-#27 89 79 06 b5 24 a6 49 89 bd 48 cf ea ec 61 d1 
-#2c c0 b6 3d db 88 5d 2d ad b0 b3 58 c6 66 aa 93 
-#f5 a4 43 fb 91 fc 2a 3d c6 99 eb 46 15 9b 05 c5 
-#75 8c 9f 13 ed 28 44 09 4c c5 39 e5 82 e1 1d e3 
-#6c 67 33 a6 7b 51 25 ef 40 7b 32 9e f5 e9 22 ca 
+#        """d7 a0 e9 1e ed dd cc 90 5d 5e cc d1 e4 12 ab 0c
+#5b db e1 18 fa 99 b7 13 2d 91 54 52 f0 b0 9a f5
+#eb c0 09 6c a1 db de ec 32 72 3f 5d dd 2b 05 56
+#4e 2c e6 7e ff ba 8e 86 77 8e 11 4a 02 a3 90 7c
+#2e 6c 6b 28 cf 16 fe e7 7d 0e f0 c4 4d 2e 3c cd
+#3e 0b 6e 8c fd d1 97 e3 aa 86 ec 19 99 80 72 9a
+#f4 45 1f 79 99 bc e5 5e b3 4b d5 a5 35 04 70 46
+#37 00 f7 30 8e 37 2b db 6e 07 5e 0b b8 a8 db a9
+#36 86 fa 4a e5 13 17 a4 43 82 bb 09 d0 92 94 c1
+#68 5b 10 97 ff d5 9c 44 6a e5 67 fa ec e6 b6 aa
+#27 89 79 06 b5 24 a6 49 89 bd 48 cf ea ec 61 d1
+#2c c0 b6 3d db 88 5d 2d ad b0 b3 58 c6 66 aa 93
+#f5 a4 43 fb 91 fc 2a 3d c6 99 eb 46 15 9b 05 c5
+#75 8c 9f 13 ed 28 44 09 4c c5 39 e5 82 e1 1d e3
+#6c 67 33 a6 7b 51 25 ef 40 7b 32 9e f5 e9 22 ca
 #57 46 a5 ff c6 7b 65 0b 4a e3 66 10 fc a0 cd 7b"""^cert:hex ;
 #          ] .
 
@@ -202,7 +202,7 @@ card:i owl:sameAs <http://www4.wiwiss.fu-berlin.de/bookmashup/persons/Tim+Berner
 
 # WWW2006 stuff:
 #  <#i>   owl:sameAs http://www.ecs.soton.ac.uk/~dt2/dlstuff/www2006_data#tim_berners-lee
-#	
+#
 
 
 
@@ -218,21 +218,20 @@ card:i owl:sameAs <http://www4.wiwiss.fu-berlin.de/bookmashup/persons/Tim+Berner
 
 <http://wiki.ontoworld.org/index.php/_IRW2006>
 	:participant card:i.
- 
-<http://wiki.ontoworld.org/index.php/_IRW2006> 
+
+<http://wiki.ontoworld.org/index.php/_IRW2006>
     dc:title "Identity, Reference and the Web workshop 2006".
-    
-card:i foaf:weblog 
+
+card:i foaf:weblog
 <http://dig.csail.mit.edu/breadcrumbs/blog/4> .
 <http://dig.csail.mit.edu/breadcrumbs/blog/4>
     rdfs:seeAlso <http://dig.csail.mit.edu/breadcrumbs/blog/feed/4>; # Sigh
     dc:title "timbl's blog";
 #    is foaf:weblog of card:i;
     foaf:maker card:i.
-    
+
 <../../DesignIssues/Overview.html>   #  Has RDFA in it
     dc:title "Design Issues for the World Wide Web";
     foaf:maker card:i.
-    
-#ends
 
+#ends
