@@ -7,7 +7,6 @@ This is based on the example in:
    The contents were saved into a local file for ease of parsing here;
    they're in n3 notation.
 """
-
 from rdflib import Graph
 import os
 import pprint
