@@ -1,5 +1,6 @@
 from pathlib import Path
 
+
 def git_codebase_root(path):
     """
     Find repository root from the path's parents.

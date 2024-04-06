@@ -3,15 +3,15 @@
 import pandas as pd
 from pathlib import Path
 
-file_path = 'project_repos_from_jos_2024-feb-22.tsv'
+file_path = "project_repos_from_jos_2024-feb-22.tsv"
 
 # Initialize lists to hold the column data
 a_values, b_values, c_values = [], [], []
 
 # Read the file line by line
-with open(file_path, 'r') as file:
+with open(file_path, "r") as file:
     for line in file:
-        columns = line.strip().split('\t')
+        columns = line.strip().split("\t")
 
         if len(columns) == 3:
             # If there are three columns, append them directly
@@ -27,12 +27,12 @@ with open(file_path, 'r') as file:
             raise ValueError(f"Unexpected number of columns: {len(columns)}")
 
 # Create a DataFrame from the accumulated lists
-df = pd.DataFrame({'projectref': a_values, 'nlnetpage': b_values, 'repourl': c_values})
+df = pd.DataFrame({"projectref": a_values, "nlnetpage": b_values, "repourl": c_values})
 
 # Print a subset of the resulting rows to visually confirm the expected info is present.
 print(df.iloc[0:31])
 
 # Save the dataframe as a CSV file
 curr_dir = Path(__file__).parent.parent
-path_to_data_folder = str(curr_dir) + '/data'
-df.to_csv(path_to_data_folder + '/github_df.csv', index=False)
+path_to_data_folder = str(curr_dir) + "/data"
+df.to_csv(path_to_data_folder + "/github_df.csv", index=False)

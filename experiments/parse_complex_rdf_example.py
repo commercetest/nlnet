@@ -14,7 +14,7 @@ import pprint
 g = Graph()
 # NB: the following path is hard-coded relative to the runtime folder. For the
 # moment this isn't worth fixing as the fix is more complex than editing here.
-g.parse(os.getcwd() + '/experiments/data_for_experiments/tbl.n3')
+g.parse(os.getcwd() + "/experiments/data_for_experiments/tbl.n3")
 
 print(len(g))
 
