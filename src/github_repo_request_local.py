@@ -1,50 +1,74 @@
-import pandas as pd
 import subprocess
-import os
+from pathlib import Path
+import pandas as pd
+from loguru import logger
+import shutil
 
 
-# Function to count test files
-def count_test_files(directory):
-    test_file_count = 0
-    for root, dirs, files in os.walk(directory):
-        for file in files:
-            if "test" in file.lower() or "test" in root.lower():
-                test_file_count += 1
-    return test_file_count
+def count_and_list_test_files(directory):
+    logger.info(f"Processing the directory {directory}")
+    test_files = []
+    # Define a set of file extensions to exclude
+    excluded_extensions = {
+        ".txt",
+        ".md",
+        ".h",
+        ".xml",
+        ".html",
+        ".json",
+        ".png",
+        ".jpg",
+    }
+    for path in directory.rglob("*"):
+        # Check if the path is a file and either the file or its parent directory contains 'test'
+        if path.is_file() and (
+            "test" in path.name.lower() or "test" in str(path.parent).lower()
+        ):
+            # Exclude files with certain extensions
+            if path.suffix not in excluded_extensions:
+                test_files.append(str(path))
+    return len(test_files), test_files
 
 
-# Load the DataFrame
-df = pd.read_csv("../data/github_df_test_count.csv")
+updated_csv_path = Path("../data/updated_local_github_df_test_count.csv")
+if updated_csv_path.exists():
+    logger.info("Resuming from previously saved progress.")
+    df = pd.read_csv(updated_csv_path)
+else:
+    csv_file_path = Path("../data/local_github_df_test_count.csv")
+    df = pd.read_csv(csv_file_path)
+    df = df.drop("Unnamed: 0", axis=1)
+    df["testfilecountlocal"] = -1  # Initialize if first run
 
-# Drop the unnamed column
-df = df.drop("Unnamed: 0", axis=1)
+for index, row in df.iterrows():
+    if row["testfilecountlocal"] != -1:
+        continue  # Skip processed repositories
 
-# Only keep the first row
-df_sample = df.head(2)
+    repo_url = row["repourl"]
+    repo_name = Path(repo_url.split("/")[-1]).stem
+    clone_dir = Path.home() / "data" / "cloned_repos" / repo_name
 
-# Extract the URL from the first row
-repo_url = df_sample["repourl"].iloc[1]
+    if not clone_dir.exists():
+        try:
+            logger.info(f"Trying to clone {repo_url} into {clone_dir}")
+            subprocess.run(
+                ["git", "clone", repo_url, str(clone_dir)],
+                check=True,
+                capture_output=True,
+            )
+            logger.info(f"Successfully cloned the repo: {repo_name}")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to clone the repo: {repo_name}. Exception: {e}")
+            df.at[index, "testfilecountlocal"] = 0
+            continue
 
-# Extract the repo name to use as a local directory name
-repo_name = repo_url.split("/")[-1].replace(".git", "")
+    count, test_file_names = count_and_list_test_files(clone_dir)
+    df.at[index, "testfilecountlocal"] = count
+    formatted_names = "\n".join(test_file_names)
+    logger.info(f"Test file names for {repo_name}:\n{formatted_names}")
 
-# Define the desired path relative to the home directory
-home_dir = os.path.expanduser("~")
-desired_path = os.path.join(home_dir, "data", "cloned_repos", repo_name)
+    # Save after each update
+    df.to_csv(updated_csv_path, index=False)
+    shutil.rmtree(clone_dir)  # Clean up
 
-# Ensure the entire desired path exists
-os.makedirs(os.path.dirname(desired_path), exist_ok=True)
-
-# Clone the repository into the desired directory
-try:
-    subprocess.check_call(["git", "clone", repo_url, desired_path])
-    print(f"Successfully cloned {repo_name} into {desired_path}")
-except subprocess.CalledProcessError as e:
-    print(f"Failed to clone {repo_name}. Error: {e}")
-
-# Count the test files in the cloned repository
-try:
-    test_file_count = count_test_files(desired_path)
-    print(f"Test files in {repo_name}: {test_file_count}")
-except Exception as e:
-    print(f"Error counting test files in {repo_name}. Error: {e}")
+logger.info("All repositories processed. DataFrame saved.")
