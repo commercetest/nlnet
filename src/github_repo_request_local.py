@@ -4,6 +4,12 @@ import pandas as pd
 from loguru import logger
 import shutil
 
+"""
+This script automates the process of cloning GitHub repositories listed in a CSV file,
+counts the number of test files in each repository , and saves the count back to the CSV. It's designed to handle interruptions by saving progress
+incrementally and resuming where it left off.
+"""
+
 
 def count_and_list_test_files(directory):
     logger.info(f"Processing the directory {directory}")
