@@ -1,3 +1,4 @@
+import argparse
 import subprocess
 from pathlib import Path
 import pandas as pd
@@ -6,25 +7,30 @@ import shutil
 
 """
 This script automates the process of cloning GitHub repositories listed in a CSV file,
-counts the number of test files in each repository , and saves the count back to the CSV. It's designed to handle interruptions by saving progress
-incrementally and resuming where it left off.
+counts the number of test files in each repository , and saves the count back to the CSV.
+It's designed to handle interruptions by saving progress incrementally and resuming
+where it left off.
 """
 
 
-def list_test_files(directory):
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Clone GitHub repositories and count test" " files."
+    )
+    parser.add_argument(
+        "--exclude",
+        nargs="+",
+        default=[".txt", ".md", ".h", ".xml", ".html", ".json", ".png", ".jpg"],
+        help="File extensions to exclude. Pass each extension as a separate "
+        "argument prefixed by --exclude",
+    )
+    return parser.parse_args()
+
+
+def list_test_files(directory, excluded_extensions):
     logger.info(f"Processing the directory {directory}")
     test_files = []
-    # Define a set of file extensions to exclude
-    excluded_extensions = {
-        ".txt",
-        ".md",
-        ".h",
-        ".xml",
-        ".html",
-        ".json",
-        ".png",
-        ".jpg",
-    }
+
     for item in directory.rglob("*"):
         # Check if the item is a file and either the file or its parent directory contains 'test'
         if item.is_file() and (
@@ -64,6 +70,10 @@ def should_keep_clones():
         else:
             print("Please answer with 'y' or 'n'.")
 
+
+args = parse_args()
+# Log the excluded file extensions
+logger.info(f"Excluded file extensions: {', '.join(args.exclude)}")
 
 # Use git_codebase_root to define paths relative to the repository root
 repo_root = git_codebase_root()
@@ -107,7 +117,7 @@ for index, row in df.iterrows():
             df.at[index, "testfilecountlocal"] = 0
             continue
 
-    test_file_names = list_test_files(clone_dir)
+    test_file_names = list_test_files(clone_dir, args.exclude)
     count = len(test_file_names)
     df.at[index, "testfilecountlocal"] = count
     formatted_names = "\n".join(test_file_names)
