@@ -36,7 +36,25 @@ def count_and_list_test_files(directory):
     return test_files
 
 
-updated_csv_path = Path("../data/updated_local_github_df_test_count.csv")
+def git_codebase_root():
+    """
+    Returns the absolute path of the top-level directory of the current Git repository.
+    If not in a Git repository, returns None.
+    """
+    try:
+        root = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"], stderr=subprocess.DEVNULL
+        )
+        return Path(root.decode().strip())
+    except subprocess.CalledProcessError:
+        logger.warning("Not inside a Git repository. Defaulting to current directory.")
+        return None
+
+
+# Use git_codebase_root to define paths relative to the repository root
+repo_root = git_codebase_root() or Path.cwd()
+updated_csv_path = repo_root / "data" / "updated_local_github_df_test_count.csv"
+
 if updated_csv_path.exists():
     logger.info("Resuming from previously saved progress.")
     df = pd.read_csv(updated_csv_path)
