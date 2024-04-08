@@ -25,14 +25,14 @@ def count_and_list_test_files(directory):
         ".png",
         ".jpg",
     }
-    for path in directory.rglob("*"):
-        # Check if the path is a file and either the file or its parent directory contains 'test'
-        if path.is_file() and (
-            "test" in path.name.lower() or "test" in str(path.parent).lower()
+    for item in directory.rglob("*"):
+        # Check if the item is a file and either the file or its parent directory contains 'test'
+        if item.is_file() and (
+            "test" in item.name.lower() or "test" in str(item.parent).lower()
         ):
             # Exclude files with certain extensions
-            if path.suffix not in excluded_extensions:
-                test_files.append(str(path))
+            if item.suffix not in excluded_extensions:
+                test_files.append(str(item))
     return test_files
 
 
