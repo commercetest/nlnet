@@ -39,7 +39,7 @@ def count_and_list_test_files(directory):
 def git_codebase_root():
     """
     Returns the absolute path of the top-level directory of the current Git repository.
-    If not in a Git repository, returns None.
+    If not in a Git repository, returns the current working directory as a fallback.
     """
     try:
         root = subprocess.check_output(
@@ -48,21 +48,25 @@ def git_codebase_root():
         return Path(root.decode().strip())
     except subprocess.CalledProcessError:
         logger.warning("Not inside a Git repository. Defaulting to current directory.")
-        return None
+        return Path.cwd()
 
 
 # Use git_codebase_root to define paths relative to the repository root
-repo_root = git_codebase_root() or Path.cwd()
+repo_root = git_codebase_root()
 updated_csv_path = repo_root / "data" / "updated_local_github_df_test_count.csv"
 
 if updated_csv_path.exists():
     logger.info("Resuming from previously saved progress.")
     df = pd.read_csv(updated_csv_path)
 else:
-    csv_file_path = Path("../data/local_github_df_test_count.csv")
-    df = pd.read_csv(csv_file_path)
-    df = df.drop("Unnamed: 0", axis=1)
-    df["testfilecountlocal"] = -1  # Initialize if first run
+    csv_file_path = repo_root / "data" / "local_github_df_test_count.csv"
+
+    if csv_file_path.exists():
+        df = pd.read_csv(csv_file_path)
+        df = df.drop("Unnamed: 0", axis=1)
+        df["testfilecountlocal"] = -1  # Initialise if first run
+    else:  # Added block
+        logger.error(f"CSV file not found at {csv_file_path}.")
 
 for index, row in df.iterrows():
     if row["testfilecountlocal"] != -1:
