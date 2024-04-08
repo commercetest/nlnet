@@ -7,15 +7,17 @@ import shutil
 from utils.git_utils import get_working_directory_or_git_root
 
 """
-This script automates the process of cloning GitHub repositories listed in a CSV file,
-counts the number of test files in each repository, and saves the count back to the CSV.
-It's designed to handle interruptions by saving progress incrementally and resuming where
-it left off. Users can specify excluded file extensions and choose a custom clone directory.
+This script automates the process of cloning GitHub repositories listed in a
+CSV file, counts the number of test files in each repository, and saves the
+count back to the CSV. It's designed to handle interruptions by saving progress
+incrementally and resuming where it left off. Users can specify excluded file
+extensions and choose a custom clone directory.
 """
 
 
 def parse_args():
-    """Parse command line arguments for excluded extensions and clone directory."""
+    """Parse command line arguments for excluded extensions and clone
+    directory."""
     parser = argparse.ArgumentParser(
         description="Clone GitHub repositories and count " "test files."
     )
@@ -36,8 +38,8 @@ def parse_args():
     parser.add_argument(
         "--keep-clones",
         action="store_true",
-        help="Keep cloned repositories after processing. If not specified, cloned"
-        " repositories ill be deleted.",
+        help="Keep cloned repositories after processing. If not specified, "
+        "cloned repositories ill be deleted.",
     )
     return parser.parse_args()
 
@@ -48,7 +50,8 @@ def list_test_files(directory, excluded_extensions):
     test_files = []
 
     for item in directory.rglob("*"):
-        # Check if the item is a file and either the file or its parent directory contains 'test'
+        # Check if the item is a file and either the file or its parent
+        # directory contains 'test'
         if item.is_file() and (
             "test" in item.name.lower() or "test" in str(item.parent).lower()
         ):
@@ -99,7 +102,7 @@ for index, row in df.iterrows():
             )
             logger.info(f"Successfully cloned the repo: {repo_name}")
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to clone the repo: {repo_name}. Exception: {e}")
+            logger.error(f"Failed to clone the repo: {repo_name}. " f"Exception: {e}")
             df.at[index, "testfilecountlocal"] = 0
             continue
 
