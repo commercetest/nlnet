@@ -11,7 +11,7 @@ incrementally and resuming where it left off.
 """
 
 
-def count_and_list_test_files(directory):
+def list_test_files(directory):
     logger.info(f"Processing the directory {directory}")
     test_files = []
     # Define a set of file extensions to exclude
@@ -107,7 +107,7 @@ for index, row in df.iterrows():
             df.at[index, "testfilecountlocal"] = 0
             continue
 
-    test_file_names = count_and_list_test_files(clone_dir)
+    test_file_names = list_test_files(clone_dir)
     count = len(test_file_names)
     df.at[index, "testfilecountlocal"] = count
     formatted_names = "\n".join(test_file_names)
