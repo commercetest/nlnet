@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 from loguru import logger
 import shutil
+from utils.git_utils import get_working_directory_or_git_root
 
 """
 This script automates the process of cloning GitHub repositories listed in a CSV file,
@@ -51,21 +52,6 @@ def list_test_files(directory, excluded_extensions):
     return test_files
 
 
-def git_codebase_root():
-    """
-    Returns the absolute path of the top-level directory of the current Git repository.
-    If not in a Git repository, returns the current working directory as a fallback.
-    """
-    try:
-        root = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"], stderr=subprocess.DEVNULL
-        )
-        return Path(root.decode().strip())
-    except subprocess.CalledProcessError:
-        logger.warning("Not inside a Git repository. Defaulting to current directory.")
-        return Path.cwd()
-
-
 def should_keep_clones():
     """Prompt the user to decide whether to keep cloned repositories."""
     while True:  # Keep asking until we get a valid response
@@ -85,7 +71,7 @@ args = parse_args()
 logger.info(f"Excluded file extensions: {', '.join(args.exclude)}")
 
 # Use git_codebase_root to define paths relative to the repository root
-repo_root = git_codebase_root()
+repo_root = get_working_directory_or_git_root()
 updated_csv_path = repo_root / "data" / "updated_local_github_df_test_count.csv"
 clone_dir_base = Path(args.clone_dir)
 
