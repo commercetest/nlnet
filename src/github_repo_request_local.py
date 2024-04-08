@@ -33,7 +33,7 @@ def count_and_list_test_files(directory):
             # Exclude files with certain extensions
             if path.suffix not in excluded_extensions:
                 test_files.append(str(path))
-    return len(test_files), test_files
+    return test_files
 
 
 updated_csv_path = Path("../data/updated_local_github_df_test_count.csv")
@@ -68,7 +68,8 @@ for index, row in df.iterrows():
             df.at[index, "testfilecountlocal"] = 0
             continue
 
-    count, test_file_names = count_and_list_test_files(clone_dir)
+    test_file_names = count_and_list_test_files(clone_dir)
+    count = len(test_file_names)
     df.at[index, "testfilecountlocal"] = count
     formatted_names = "\n".join(test_file_names)
     logger.info(f"Test file names for {repo_name}:\n{formatted_names}")
