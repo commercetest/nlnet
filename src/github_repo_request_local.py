@@ -33,6 +33,12 @@ def parse_args():
         help="Directory to clone repositories into. Defaults to "
         "~/data/cloned_repos.",
     )
+    parser.add_argument(
+        "--keep-clones",
+        action="store_true",
+        help="Keep cloned repositories after processing. If not specified, cloned"
+        " repositories ill be deleted.",
+    )
     return parser.parse_args()
 
 
@@ -50,20 +56,6 @@ def list_test_files(directory, excluded_extensions):
             if item.suffix not in excluded_extensions:
                 test_files.append(str(item))
     return test_files
-
-
-def should_keep_clones():
-    """Prompt the user to decide whether to keep cloned repositories."""
-    while True:  # Keep asking until we get a valid response
-        response = (
-            input("Keep cloned repositories after processing? (y/n): ").strip().lower()
-        )
-        if response in ("y", "yes"):
-            return True
-        elif response in ("n", "no"):
-            return False
-        else:
-            print("Please answer with 'y' or 'n'.")
 
 
 args = parse_args()
@@ -88,8 +80,6 @@ else:
     else:
         logger.error(f"CSV file not found at {csv_file_path}.")
 
-
-keep_clones = should_keep_clones()  # Ask the user before starting the processing loop
 
 for index, row in df.iterrows():
     if row["testfilecountlocal"] != -1:
@@ -122,8 +112,10 @@ for index, row in df.iterrows():
     # Save after each update
     df.to_csv(updated_csv_path, index=False)
 
-    # Cleanup based on user's choice
-    if not keep_clones:  # If user chose not to keep clones, delete the directory
+    # Cleanup based on user's command-line option
+    if (
+        not args.keep_clones
+    ):  # If user did not specify --keep-clones, delete the directory
         shutil.rmtree(clone_dir)
 
 
