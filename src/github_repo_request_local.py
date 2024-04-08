@@ -7,27 +7,36 @@ import shutil
 
 """
 This script automates the process of cloning GitHub repositories listed in a CSV file,
-counts the number of test files in each repository , and saves the count back to the CSV.
-It's designed to handle interruptions by saving progress incrementally and resuming
-where it left off.
+counts the number of test files in each repository, and saves the count back to the CSV.
+It's designed to handle interruptions by saving progress incrementally and resuming where
+it left off. Users can specify excluded file extensions and choose a custom clone directory.
 """
 
 
 def parse_args():
+    """Parse command line arguments for excluded extensions and clone directory."""
     parser = argparse.ArgumentParser(
-        description="Clone GitHub repositories and count test" " files."
+        description="Clone GitHub repositories and count " "test files."
     )
     parser.add_argument(
         "--exclude",
         nargs="+",
         default=[".txt", ".md", ".h", ".xml", ".html", ".json", ".png", ".jpg"],
-        help="File extensions to exclude. Pass each extension as a separate "
-        "argument prefixed by --exclude",
+        help="File extensions to exclude. Pass each extension as a"
+        " separate argument prefixed by --exclude.",
+    )
+    parser.add_argument(
+        "--clone-dir",
+        type=str,
+        default=str(Path.home() / "data" / "cloned_repos"),
+        help="Directory to clone repositories into. Defaults to "
+        "~/data/cloned_repos.",
     )
     return parser.parse_args()
 
 
 def list_test_files(directory, excluded_extensions):
+    """List test files in the directory, excluding specified extensions."""
     logger.info(f"Processing the directory {directory}")
     test_files = []
 
@@ -78,6 +87,7 @@ logger.info(f"Excluded file extensions: {', '.join(args.exclude)}")
 # Use git_codebase_root to define paths relative to the repository root
 repo_root = git_codebase_root()
 updated_csv_path = repo_root / "data" / "updated_local_github_df_test_count.csv"
+clone_dir_base = Path(args.clone_dir)
 
 if updated_csv_path.exists():
     logger.info("Resuming from previously saved progress.")
@@ -89,7 +99,7 @@ else:
         df = pd.read_csv(csv_file_path)
         df = df.drop("Unnamed: 0", axis=1)
         df["testfilecountlocal"] = -1  # Initialise if first run
-    else:  # Added block
+    else:
         logger.error(f"CSV file not found at {csv_file_path}.")
 
 
@@ -101,7 +111,7 @@ for index, row in df.iterrows():
 
     repo_url = row["repourl"]
     repo_name = Path(repo_url.split("/")[-1]).stem
-    clone_dir = Path.home() / "data" / "cloned_repos" / repo_name
+    clone_dir = clone_dir_base / repo_name
 
     if not clone_dir.exists():
         try:
