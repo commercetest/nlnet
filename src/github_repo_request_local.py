@@ -51,6 +51,20 @@ def git_codebase_root():
         return Path.cwd()
 
 
+def should_keep_clones():
+    """Prompt the user to decide whether to keep cloned repositories."""
+    while True:  # Keep asking until we get a valid response
+        response = (
+            input("Keep cloned repositories after processing? (y/n): ").strip().lower()
+        )
+        if response in ("y", "yes"):
+            return True
+        elif response in ("n", "no"):
+            return False
+        else:
+            print("Please answer with 'y' or 'n'.")
+
+
 # Use git_codebase_root to define paths relative to the repository root
 repo_root = git_codebase_root()
 updated_csv_path = repo_root / "data" / "updated_local_github_df_test_count.csv"
@@ -67,6 +81,9 @@ else:
         df["testfilecountlocal"] = -1  # Initialise if first run
     else:  # Added block
         logger.error(f"CSV file not found at {csv_file_path}.")
+
+
+keep_clones = should_keep_clones()  # Ask the user before starting the processing loop
 
 for index, row in df.iterrows():
     if row["testfilecountlocal"] != -1:
@@ -98,6 +115,10 @@ for index, row in df.iterrows():
 
     # Save after each update
     df.to_csv(updated_csv_path, index=False)
-    shutil.rmtree(clone_dir)  # Clean up
+
+    # Cleanup based on user's choice
+    if not keep_clones:  # If user chose not to keep clones, delete the directory
+        shutil.rmtree(clone_dir)
+
 
 logger.info("All repositories processed. DataFrame saved.")
