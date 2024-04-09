@@ -4,8 +4,8 @@ import time
 import numpy as np
 from loguru import logger
 import pandas as pd
-from find_repo import git_codebase_root
 from requests_ratelimiter import LimiterSession
+from utils.git_utils import git_codebase_root
 
 
 def load_data(filepath):
@@ -17,7 +17,7 @@ def load_data(filepath):
         return df
 
     except Exception as e:
-        logger.error(f"Error Loading data from path {filepath} with exception {e}")
+        logger.error(f"Error Loading data from path {filepath} with exception" f" {e}")
     return None
 
 
@@ -42,11 +42,12 @@ def extract_owner_and_repo_names(repourl):
     parts = repourl.split("/")
     logger.info(parts)
 
-    # Not all repourls are correct, some point to just the user and others to the issues page
+    # Not all repourls are correct, some point to just the user and others to
+    # the issues page
     index_of_github = parts.index("github.com")
     if len(parts) <= index_of_github + 2:
         logger.warning(
-            f"repopath: {repourl} does not contain both the owner and repo names"
+            f"repopath: {repourl} does not contain both the owner and repo " f"names"
         )
         return ""
 
@@ -74,12 +75,13 @@ def get_test_file_count(repo_path, headers):
             search_results = response.json()
             if "items" not in search_results:
                 logger.error(
-                    f"Unable to find 'items' in search_results. Got {search_results}"
+                    f"Unable to find 'items' in search_results. Got "
+                    f"{search_results}"
                 )
             else:
                 test_files.extend(search_results["items"])
                 for item in search_results["items"]:
-                    logger.debug(f'File Name: {item["name"]}, Path: {item["path"]}')
+                    logger.debug(f'File Name: {item["name"]}, Path: ' f'{item["path"]}')
                 if "next" in response.links:
                     page += 1
                 else:
@@ -92,7 +94,8 @@ def get_test_file_count(repo_path, headers):
 def get_latest_commit_info(repo_path, headers):
     session = LimiterSession(per_minute=5)
     # Get the commit hash
-    # As per: https://docs.github.com/en/rest/commits/commits?apiVersion=2022-11-28
+    # As per: https://docs.github.com/en/rest/commits/
+    # commits?apiVersion=2022-11-28
     # "https://api.github.com/repos/OWNER/REPO/commits"
     commit_url = f"https://api.github.com/repos/{repo_path}/commits"
     logger.debug(f"Commit Url: {commit_url}")
@@ -105,7 +108,8 @@ def get_latest_commit_info(repo_path, headers):
         #     commits = len(commit_results)
         if "sha" not in commit_results[0]:
             logger.error(
-                f"Unable to find commit 'sha' in the first commit results. Got {commit_results[0]}"
+                f"Unable to find commit 'sha' in the first commit results."
+                f" Got {commit_results[0]}"
             )
         else:
             html_url = commit_results[0]["html_url"]
@@ -135,14 +139,16 @@ def make_github_request(url, session, headers, attempt_num=1):
 
 
 def main():
-    codebase_root = str(git_codebase_root(__file__))
+    codebase_root = str(git_codebase_root())
     github_df_file_path = codebase_root + "/data/github_df.csv"
+    logger.info(f" github_df_file_path is : { github_df_file_path}")
 
     # Accessing the environmental variable (PAT)
     pat = os.getenv("MY_PAT")
     if pat is None:
         logger.error(
-            "MY_PAT environment variable needs setting with a valid Personal Access Token for github.com"
+            "MY_PAT environment variable needs setting with a valid Personal "
+            "Access Token for github.com"
         )
         os._exit(os.EX_CONFIG)
 
@@ -155,16 +161,18 @@ def main():
 
     else:
         logger.info(
-            f"Could not find existing file at '{github_df_file_path}', creating a new file."
+            f"Could not find existing file at '{github_df_file_path}', creating"
+            f" a new file."
         )
-        data_path = codebase_root + "/data/df.csv"
+        data_path = codebase_root + "/data/df"
         # Loading the dataframe
         df = load_data(data_path)
 
         # Checking the Null and duplicate values
         check_and_clean_data(df)
 
-        # I will keep the first occurrence of each duplicate row and remove the others:
+        # I will keep the first occurrence of each duplicate row and remove the
+        # others:
         df = df.drop_duplicates(keep="first")
 
         # I will only consider github.com domain
@@ -186,14 +194,16 @@ def main():
 
     if "testfilecount" not in github_df.columns:
         logger.info(
-            f"Column 'testfilecount' not found in '{github_df_file_path}', adding it."
+            f"Column 'testfilecount' not found in '{github_df_file_path}',"
+            f" adding it."
         )
         github_df["testfilecount"] = -1
     else:
         complete = github_df[github_df["testfilecount"] != -1]
         logger.info(
-            f"Resuming processing, out of {len(github_df)} rows {len(complete)} are complete "
-            f"leaving {len(github_df) - len(complete)} to process."
+            f"Resuming processing, out of {len(github_df)} rows {len(complete)}"
+            f" are complete. leaving {len(github_df) - len(complete)} to"
+            f" process."
         )
 
     for index, row in github_df.iterrows():
