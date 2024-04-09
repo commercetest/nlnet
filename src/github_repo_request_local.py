@@ -39,7 +39,7 @@ def parse_args():
         "--keep-clones",
         action="store_true",
         help="Keep cloned repositories after processing. If not specified, "
-        "cloned repositories ill be deleted.",
+        "cloned repositories will be deleted.",
     )
     return parser.parse_args()
 
@@ -65,7 +65,8 @@ args = parse_args()
 # Log the excluded file extensions
 logger.info(f"Excluded file extensions: {', '.join(args.exclude)}")
 
-# Use git_codebase_root to define paths relative to the repository root
+# Use get_working_directory_or_git_root to define paths relative to the
+# repository root
 repo_root = get_working_directory_or_git_root()
 updated_csv_path = repo_root / "data" / "updated_local_github_df_test_count.csv"
 clone_dir_base = Path(args.clone_dir)
@@ -102,7 +103,9 @@ for index, row in df.iterrows():
             )
             logger.info(f"Successfully cloned the repo: {repo_name}")
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to clone the repo: {repo_name}. " f"Exception: {e}")
+            logger.error(
+                f"Failed to clone the repo: {repo_name}." f" " f"Exception: {e}"
+            )
             df.at[index, "testfilecountlocal"] = 0
             continue
 
