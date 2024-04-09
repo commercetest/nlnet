@@ -45,5 +45,23 @@ pytest --junit-xml=reports/junit/junit.xml --html=reports/junit/report.html
 genbadge tests --output-file reports/junit/tests-badge.svg
 ```
 
+## Scripts
+
+1. github_repo_request_local.py :
+
+   ### Overview
+   
+   This Python script automates the cloning and analysis of GitHub repositories. Designed for robustness, it handles interruptions by
+   saving progress, allowing for resumption without data loss. It provides the flexibility to exclude specific file types and to set
+   a custom directory for repository clones.
+
+    ### Key Features
+     - **Cloning Automation**: Clone repositories from a list provided in a CSV file.
+     - **Test File Counting**: Count the number of 'test' files within each repository, ignoring files with user-defined extensions.
+     - **Progress Tracking**: Save and resume progress, ideal for long-running processes.
+     - **Customizability**: Specify file extensions to exclude and designate a custom directory for cloned repositories via command-            line arguments.
+     - **Clean-up Option**: Choose whether to keep or remove cloned repositories after processing.
+   
+
 ## Related projects
 Work on the data analysis of NLnet projects is also maintained in: https://codeberg.org/NGI0Review/harvest (and the test coverage tracked online at https://artifacts.nlnet.nl/harvest/main/coverage/). In future some or all of this repo's work may migrate there, for the moment this repo facilitates exploration and experimentation.
