@@ -1,7 +1,6 @@
 import os
 import time
 
-import numpy as np
 from loguru import logger
 import pandas as pd
 from requests_ratelimiter import LimiterSession
@@ -21,23 +20,6 @@ def load_data(filepath):
     return None
 
 
-def check_and_clean_data(df):
-    # Checking for null values
-    null_counts = df.isnull().sum()
-    if np.any(null_counts):
-        logger.info("Null values found:")
-        logger.info(null_counts[null_counts > 0])
-    else:
-        logger.info("No null values found.")
-
-    # Checking for duplicates
-    duplicates = df.duplicated().sum()
-    if duplicates:
-        logger.info(f"Number of duplicate rows: {duplicates}")
-    else:
-        logger.info("No duplicate rows found.")
-
-
 def extract_owner_and_repo_names(repourl):
     parts = repourl.split("/")
     logger.info(parts)
@@ -47,7 +29,7 @@ def extract_owner_and_repo_names(repourl):
     index_of_github = parts.index("github.com")
     if len(parts) <= index_of_github + 2:
         logger.warning(
-            f"repopath: {repourl} does not contain both the owner and repo " f"names"
+            f"repopath: {repourl} Does not contain both the owner and repo names"
         )
         return ""
 
@@ -81,7 +63,7 @@ def get_test_file_count(repo_path, headers):
             else:
                 test_files.extend(search_results["items"])
                 for item in search_results["items"]:
-                    logger.debug(f'File Name: {item["name"]}, Path: ' f'{item["path"]}')
+                    logger.debug(f'File Name: {item["name"]}, Path: {item["path"]}')
                 if "next" in response.links:
                     page += 1
                 else:
@@ -164,19 +146,9 @@ def main():
             f"Could not find existing file at '{github_df_file_path}', creating"
             f" a new file."
         )
-        data_path = codebase_root + "/data/df"
+        data_path = codebase_root + "/data/original_github_df.csv"
         # Loading the dataframe
-        df = load_data(data_path)
-
-        # Checking the Null and duplicate values
-        check_and_clean_data(df)
-
-        # I will keep the first occurrence of each duplicate row and remove the
-        # others:
-        df = df.drop_duplicates(keep="first")
-
-        # I will only consider github.com domain
-        github_df = df[df["repourl"].str.contains("github.com")]
+        github_df = load_data(data_path)
 
         # Some of the URLs end with "/". I need to remove them.
         github_df["repourl"] = github_df["repourl"].str.rstrip("/")
