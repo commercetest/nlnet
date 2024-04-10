@@ -75,11 +75,10 @@ if updated_csv_path.exists():
     logger.info("Resuming from previously saved progress.")
     df = pd.read_csv(updated_csv_path)
 else:
-    csv_file_path = repo_root / "data" / "local_github_df_test_count.csv"
+    csv_file_path = repo_root / "data" / "original_github_df.csv"
 
     if csv_file_path.exists():
         df = pd.read_csv(csv_file_path)
-        df = df.drop("Unnamed: 0", axis=1)
         df["testfilecountlocal"] = -1  # Initialise if first run
     else:
         logger.error(f"CSV file not found at {csv_file_path}.")
