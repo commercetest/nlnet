@@ -79,4 +79,4 @@ df.to_csv(path_to_data_folder / "original.csv", index=False)
 
 # Extracting the rows which host the code on github.com domain
 original_github_df = df[df["repourl"].str.contains("github.com")]
-original_github_df.to_csv(path_to_data_folder / "original_github_df.csv")
+original_github_df.to_csv(path_to_data_folder / "original_github_df.csv", index=False)
