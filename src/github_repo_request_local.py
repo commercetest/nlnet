@@ -150,13 +150,15 @@ BATCH_SIZE = 10
 processed_count = 0
 
 for index, row in df.iterrows():
-    if row["testfilecountlocal"] != -1:
-        continue  # Skip processed repositories
+    # Check if we need to skip this repository because it's fully processed
+    if row["testfilecountlocal"] != -1 and pd.notna(row["last_commit_hash"]):
+        continue
 
     repo_url = row["repourl"]
     repo_name = Path(repo_url.split("/")[-1]).stem
     clone_dir = clone_dir_base / repo_name
 
+    # Clone only if directory doesn't exist
     if not clone_dir.exists():
         try:
             logger.info(f"Trying to clone {repo_url} into {clone_dir}")
@@ -185,12 +187,22 @@ for index, row in df.iterrows():
 
             continue
 
-    test_file_names = list_test_files(clone_dir, args.exclude)
-    count = len(test_file_names)
-    df.at[index, "testfilecountlocal"] = count
-    formatted_names = "\n".join(test_file_names)
-    logger.info(f"Test file names for {repo_name}:\n{formatted_names}")
+    # Always attempt to fetch the last commit hash if not already fetched
+    if pd.isna(row["last_commit_hash"]):
+        last_commit_hash = get_last_commit_hash(clone_dir)
+        df.at[index, "last_commit_hash"] = last_commit_hash
 
+    # Count test files if not already counted
+    if row["testfilecountlocal"] == -1:
+        test_file_names = list_test_files(clone_dir, args.exclude)
+        count = len(test_file_names)
+        df.at[index, "testfilecountlocal"] = count
+        formatted_names = "\n".join(test_file_names)
+        logger.info(f"Test file names for {repo_name}:\n{formatted_names}")
+
+    processed_count += 1
+
+    # Processed count increment and batch check
     if processed_count >= BATCH_SIZE:
         # Save the DataFrame to CSV
         df.to_csv(updated_csv_path, index=False)
@@ -199,12 +211,10 @@ for index, row in df.iterrows():
         # Reset the processed_count for the next batch
         processed_count = 0
 
+# Save any remaining changes at the end of processing
 if processed_count > 0:
     df.to_csv(updated_csv_path, index=False)
     logger.info("Final batch processed. DataFrame saved.")
-
-    # Save after each update
-    # df.to_csv(updated_csv_path, index=False)
 
     # Cleanup based on user's command-line option
     # if (
