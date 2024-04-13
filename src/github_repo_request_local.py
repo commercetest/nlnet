@@ -8,9 +8,12 @@ from utils.git_utils import get_working_directory_or_git_root
 """
 This script automates the process of cloning GitHub repositories listed in a
 CSV file, counts the number of test files in each repository, and saves the
-count back to the CSV. It's designed to handle interruptions by saving progress
-incrementally and resuming where it left off. Users can specify excluded file
-extensions and choose a custom clone directory.
+count and the last commit hash back to the CSV. The script is designed to handle
+interruptions and errors more robustly by independently verifying the completion
+of each critical operation (cloning, commit hash retrieval, and test file counting).
+It saves progress incrementally and resumes where it left off, ensuring that
+partial data from previous runs is handled properly. Users can specify excluded
+file extensions and choose a custom clone directory.
 """
 
 
