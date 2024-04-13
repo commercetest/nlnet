@@ -116,6 +116,22 @@ else:
 if "last_commit_hash" not in df.columns:
     df["last_commit_hash"] = None  # Initialize the column with None
 
+# Filter out rows where the URL doesn't have a repository name (83 rows)
+if "repourl" in df.columns:
+    # Identify rows with incomplete URLs
+    incomplete_urls = df[
+        df["repourl"].apply(lambda x: len(x.rstrip("/").split("/")) < 5)
+    ]
+
+    # Log the incomplete URLs
+    if not incomplete_urls.empty:
+        logger.info("Incomplete GitHub URLs found and will be excluded:")
+        for url in incomplete_urls["repourl"]:
+            logger.info(f"Excluding the repourl : {url}")
+
+    df = df[df["repourl"].apply(lambda x: len(x.rstrip("/").split("/")) >= 5)]
+
+
 # replace http with https
 df["repourl"] = df["repourl"].str.replace(r"^http\b", "https", regex=True)
 
