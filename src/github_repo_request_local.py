@@ -3,7 +3,6 @@ import subprocess
 from pathlib import Path
 import pandas as pd
 from loguru import logger
-import shutil
 from utils.git_utils import get_working_directory_or_git_root
 
 """
@@ -24,16 +23,18 @@ def parse_args():
     parser.add_argument(
         "--exclude",
         nargs="+",
-        default=[".txt", ".md", ".h", ".xml", ".html", ".json", ".png", ".jpg"],
+        default=[".txt", ".md", ".h", ".xml", ".html", ".json", ".png", ".jpg", ".md"],
         help="File extensions to exclude. Pass each extension as a"
         " separate argument prefixed by --exclude.",
     )
     parser.add_argument(
         "--clone-dir",
         type=str,
-        default=str(Path.home() / "data" / "cloned_repos"),
-        help="Directory to clone repositories into. Defaults to "
-        "~/data/cloned_repos.",
+        # default=str(Path.home() / "data" / "cloned_repos"),
+        default="/Volumes/BEXO MAN",
+        # help="Directory to clone repositories into. Defaults to "
+        # "~/data/cloned_repos.",
+        help="Directory to clone repositories into. Defaults to the USB drive" " path.",
     )
     parser.add_argument(
         "--keep-clones",
@@ -61,6 +62,35 @@ def list_test_files(directory, excluded_extensions):
     return test_files
 
 
+def get_last_commit_hash(repo_dir: Path) -> str:
+    """
+    Fetches the hash of the last commit of the Git repository located in repo_dir.
+
+    Parameters:
+    - repo_dir (Path): The path to the cloned Git repository.
+
+    Returns:
+    - str: The hash of the last commit if successful, an empty string otherwise.
+    """
+    try:
+        # Execute the git command to get the last commit hash
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_dir,  # Set the current working directory to the repo
+            # directory
+            capture_output=True,
+            text=True,  # Capture the output as text
+            check=True,  # Raise an exception if the command fails
+        )
+        return result.stdout.strip()  # Return the commit hash, stripped of any
+        # newline characters
+    except subprocess.CalledProcessError as e:
+        logger.error(
+            f"Failed to fetch last commit hash for {repo_dir}." f" Exception: {e}"
+        )
+        return ""  # Return an empty string to indicate failure
+
+
 args = parse_args()
 # Log the excluded file extensions
 logger.info(f"Excluded file extensions: {', '.join(args.exclude)}")
@@ -83,6 +113,14 @@ else:
     else:
         logger.error(f"CSV file not found at {csv_file_path}.")
 
+if "last_commit_hash" not in df.columns:
+    df["last_commit_hash"] = None  # Initialize the column with None
+
+# Number of repositories to process before saving to CSV
+BATCH_SIZE = 10
+
+# Track the number of processed repositories in the current batch
+processed_count = 0
 
 for index, row in df.iterrows():
     if row["testfilecountlocal"] != -1:
@@ -101,11 +139,23 @@ for index, row in df.iterrows():
                 capture_output=True,
             )
             logger.info(f"Successfully cloned the repo: {repo_name}")
+
+            # Fetch the last commit hash and store it in the DataFrame
+            last_commit_hash = get_last_commit_hash(clone_dir)
+            df.at[index, "last_commit_hash"] = last_commit_hash
+
+            # On successful clone, increment the processed_count
+            processed_count += 1
+
         except subprocess.CalledProcessError as e:
             logger.error(
                 f"Failed to clone the repo: {repo_name}." f" " f"Exception: {e}"
             )
             df.at[index, "testfilecountlocal"] = 0
+
+            # Even on failure, consider it processed for this batch
+            processed_count += 1
+
             continue
 
     test_file_names = list_test_files(clone_dir, args.exclude)
@@ -114,14 +164,32 @@ for index, row in df.iterrows():
     formatted_names = "\n".join(test_file_names)
     logger.info(f"Test file names for {repo_name}:\n{formatted_names}")
 
-    # Save after each update
+    if processed_count >= BATCH_SIZE:
+        # Save the DataFrame to CSV
+        df.to_csv(updated_csv_path, index=False)
+        logger.info(f"Batch of {BATCH_SIZE} repositories processed. Progress saved.")
+
+        # Reset the processed_count for the next batch
+        processed_count = 0
+
+if processed_count > 0:
     df.to_csv(updated_csv_path, index=False)
+    logger.info("Final batch processed. DataFrame saved.")
+
+    # Save after each update
+    # df.to_csv(updated_csv_path, index=False)
 
     # Cleanup based on user's command-line option
-    if (
-        not args.keep_clones
-    ):  # If user did not specify --keep-clones, delete the directory
-        shutil.rmtree(clone_dir)
+    # if (
+    #     not args.keep_clones
+    # ):  # If user did not specify --keep-clones, delete the directory
+    #     shutil.rmtree(clone_dir)
 
 
-logger.info("All repositories processed. DataFrame saved.")
+# logger.info("All repositories processed. DataFrame saved.")
+
+# Exporting the result to an RDF format
+# df_test = pd.read_csv('../data/updated_local_github_df_test_count1111.csv')
+# first_row = df_test.iloc[0]
+# rdf_string = dataframe_row_to_ttl(first_row)
+# print(rdf_string)
