@@ -116,6 +116,9 @@ else:
 if "last_commit_hash" not in df.columns:
     df["last_commit_hash"] = None  # Initialize the column with None
 
+# replace http with https
+df["repourl"] = df["repourl"].str.replace(r"^http\b", "https", regex=True)
+
 # Number of repositories to process before saving to CSV
 BATCH_SIZE = 10
 
