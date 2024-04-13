@@ -1,54 +1,71 @@
 from rdflib import Graph, Literal, URIRef, RDF, Namespace
 from rdflib.namespace import FOAF, XSD, RDFS
+import pandas as pd
+from loguru import logger
 
 
-def dataframe_row_to_ttl(row):
+def dataframe_to_ttl(df):
     """
-    Converts a pandas DataFrame row to TTL RDF format, following the client's specifications.
+    Converts a pandas DataFrame to TTL RDF format, including additional
+    repository details, and logs issues encountered when processing each row.
 
     Args:
-        row: A pandas DataFrame row.
+        df: A pandas DataFrame with columns 'projectref', 'nlnetpage',
+        'repourl', 'testfilecountlocal', and 'last_commit_hash'.
 
     Returns:
-        A string representing the TTL RDF representation of the row.
+        A list of strings, each representing the TTL RDF representation of
+        a row.
     """
-
-    # Create a new RDF graph
-    graph = Graph()
-
-    # Define the base URI for the project
+    ttl_strings = []
     base_uri = "https://nlnet.nl/project/"
     project_namespace = Namespace(base_uri)
 
-    # Extract data from the row
-    project_ref = row["projectref"]
-    nlnet_page = row["nlnetpage"]
-    repo_url = row["repourl"]
-    test_file_count = row["testfilecountlocal"]
+    for index, row in df.iterrows():
+        try:
+            graph = Graph()
+            project_ref = row["projectref"]
+            nlnet_page = row["nlnetpage"]
+            repo_url = row["repourl"]
+            test_file_count = row["testfilecountlocal"]
+            last_commit_hash = row["last_commit_hash"]
 
-    # Create RDF subject (URI) based on base_uri and project_ref
-    subject_uri = URIRef(base_uri + project_ref)
+            # Check for necessary data completeness
+            if (
+                pd.isna(project_ref)
+                or pd.isna(nlnet_page)
+                or pd.isna(repo_url)
+                or pd.isna(test_file_count)
+                or pd.isna(last_commit_hash)
+            ):
+                raise ValueError(
+                    "Missing required data fields for RDF " "serialization."
+                )
 
-    # Add RDF triples (subject, predicate, object)
-    # Type for the project could be a specific class if you have one, here I'm using FOAF.Project
-    graph.add((subject_uri, RDF.type, FOAF.Project))
+            subject_uri = URIRef(base_uri + project_ref)
+            graph.add((subject_uri, RDF.type, FOAF.Project))
+            graph.add((subject_uri, FOAF.homepage, URIRef(nlnet_page)))
+            graph.add((subject_uri, RDFS.seeAlso, URIRef(repo_url)))
+            graph.add(
+                (
+                    subject_uri,
+                    project_namespace.testFileCount,
+                    Literal(test_file_count, datatype=XSD.integer),
+                )
+            )
+            # Add last commit hash
+            graph.add(
+                (
+                    subject_uri,
+                    project_namespace.lastCommitHash,
+                    Literal(last_commit_hash, datatype=XSD.string),
+                )
+            )
 
-    # Add homepage link to the project's NLnet page
-    graph.add((subject_uri, FOAF.homepage, URIRef(nlnet_page)))
+            # Serialize the RDF graph to a string in TTL format and add to list
+            ttl_strings.append(graph.serialize(format="turtle"))
 
-    # Add seeAlso link to the project's GitHub repository URL
-    graph.add((subject_uri, RDFS.seeAlso, URIRef(repo_url)))
+        except Exception as e:
+            logger.error(f"Skipping row {index} due to an error: {e}")
 
-    # Add literal for test file count
-    graph.add(
-        (
-            subject_uri,
-            project_namespace.testFileCount,
-            Literal(test_file_count, datatype=XSD.integer),
-        )
-    )
-
-    # Serialize the RDF graph to a string in TTL format
-    ttl_string = graph.serialize(format="turtle")
-
-    return ttl_string
+    return ttl_strings
