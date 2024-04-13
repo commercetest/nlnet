@@ -4,6 +4,8 @@ from pathlib import Path
 import pandas as pd
 from loguru import logger
 from utils.git_utils import get_working_directory_or_git_root
+from utils.export_to_rdf import dataframe_to_ttl
+
 
 """
 This script automates the process of cloning GitHub repositories listed in a
@@ -13,7 +15,8 @@ interruptions and errors more robustly by independently verifying the completion
 of each critical operation (cloning, commit hash retrieval, and test file counting).
 It saves progress incrementally and resumes where it left off, ensuring that
 partial data from previous runs is handled properly. Users can specify excluded
-file extensions and choose a custom clone directory.
+file extensions and choose a custom clone directory. In the end, the script will
+convert the result to Turtle format and saves the file.
 """
 
 
@@ -226,10 +229,20 @@ if processed_count > 0:
     #     shutil.rmtree(clone_dir)
 
 
-# logger.info("All repositories processed. DataFrame saved.")
+logger.info("All repositories processed. DataFrame saved.")
 
 # Exporting the result to an RDF format
-# df_test = pd.read_csv('../data/updated_local_github_df_test_count1111.csv')
-# first_row = df_test.iloc[0]
-# rdf_string = dataframe_row_to_ttl(first_row)
-# print(rdf_string)
+
+# Get the repository root and define the path to save the TTL file
+path_to_save_ttl = repo_root / "data" / "all_data.ttl"
+
+# Convert DataFrame to Turtle format
+ttl_data = dataframe_to_ttl(df)
+
+# Save all Turtle strings to a single file
+with open(path_to_save_ttl, "w") as f:
+    for ttl in ttl_data:
+        f.write(ttl)
+        f.write(
+            "\n"
+        )  # Optionally add a newline between each entry for better readability
