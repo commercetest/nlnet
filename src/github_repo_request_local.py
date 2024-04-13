@@ -30,11 +30,14 @@ def parse_args():
     parser.add_argument(
         "--clone-dir",
         type=str,
-        # default=str(Path.home() / "data" / "cloned_repos"),
-        default="/Volumes/BEXO MAN",
-        # help="Directory to clone repositories into. Defaults to "
-        # "~/data/cloned_repos.",
-        help="Directory to clone repositories into. Defaults to the USB drive" " path.",
+        default=str(
+            Path(get_working_directory_or_git_root())
+            / "data"
+            / "cloned_repo_second_run"
+        ),
+        # default="/Volumes/BEXO MAN",
+        help="Defaults to a subdirectory within the project's data folder.",
+        # help="Directory to clone repositories into. Defaults to the USB drive" " path.",
     )
     parser.add_argument(
         "--keep-clones",
@@ -101,6 +104,8 @@ repo_root = get_working_directory_or_git_root()
 updated_csv_path = repo_root / "data" / "updated_local_github_df_test_count.csv"
 clone_dir_base = Path(args.clone_dir)
 
+clone_dir_base.mkdir(parents=True, exist_ok=True)  # Ensures the directory exists
+
 if updated_csv_path.exists():
     logger.info("Resuming from previously saved progress.")
     df = pd.read_csv(updated_csv_path)
@@ -112,9 +117,6 @@ else:
         df["testfilecountlocal"] = -1  # Initialise if first run
     else:
         logger.error(f"CSV file not found at {csv_file_path}.")
-
-if "last_commit_hash" not in df.columns:
-    df["last_commit_hash"] = None  # Initialize the column with None
 
 # Filter out rows where the URL doesn't have a repository name (83 rows)
 if "repourl" in df.columns:
@@ -132,8 +134,14 @@ if "repourl" in df.columns:
     df = df[df["repourl"].apply(lambda x: len(x.rstrip("/").split("/")) >= 5)]
 
 
+if "last_commit_hash" not in df.columns:
+    df["last_commit_hash"] = None  # Initialize the column with None
+
 # replace http with https
 df["repourl"] = df["repourl"].str.replace(r"^http\b", "https", regex=True)
+
+# Some of the URLs end with "/". I need to remove them.
+df["repourl"] = df["repourl"].str.rstrip("/")
 
 # Number of repositories to process before saving to CSV
 BATCH_SIZE = 10
