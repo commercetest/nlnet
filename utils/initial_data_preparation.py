@@ -1,10 +1,15 @@
 """
 This script reads a TSV file into a Pandas DataFrame, performs data cleaning
-and preprocessing steps, and saves the results as CSV files. It also checks for
-null values and duplicate rows in the DataFrame.
+and preprocessing steps, and saves the results as CSV files. The preprocessing
+includes checking for null values and duplicate rows in the DataFrame.
 
-In addition to this, the rows from the original df where the
-code is hosted in the github.com domain is extracted and saved.
+Additionally, the script:
+- Extracts the domain from each URL in the 'repourl' column to determine where
+  the code is hosted.
+- Separates the DataFrame into multiple DataFrames based on the unique domains,
+  facilitating domain-specific analyses.
+- Saves DataFrames that contain more than 10 entries into a structured directory
+  format, specifically catering to repositories hosted under distinct domains.
 
 """
 
@@ -12,6 +17,7 @@ import pandas as pd
 import numpy as np
 from loguru import logger
 from utils.git_utils import get_working_directory_or_git_root
+import os
 
 
 def check_and_clean_data(df):
@@ -77,6 +83,52 @@ check_and_clean_data(df)
 df = df.drop_duplicates(keep="first")
 df.to_csv(path_to_data_folder / "original.csv", index=False)
 
-# Extracting the rows which host the code on github.com domain
-original_github_df = df[df["repourl"].str.contains("github.com")]
-original_github_df.to_csv(path_to_data_folder / "original_github_df.csv", index=False)
+
+# Extract the domain from the URL
+df["domain"] = df["repourl"].str.extract(r"https?://(www\.)?([^/]+)")[1]
+
+# Get the distinct domains
+distinct_domains = df["domain"].unique()
+
+# Create separate DataFrames for each domain
+# A dictionary comprehension is used to create a separate DataFrame for each
+# unique domain. For each domain in the list of unique domains, we filter the
+# original DataFrame to only include rows where the 'Domain' column matches the
+# current domain. We then drop the 'Domain' column since it's no longer needed
+# and reset the index to clean up the DataFrame.
+dfs_by_domain = {
+    domain: df[df["domain"] == domain].drop("domain", axis=1).reset_index(drop=True)
+    for domain in distinct_domains
+}
+
+# Each key in the dictionary is a domain, and the value is the corresponding
+# DataFrame
+
+# Count the number of repositories for each domain
+repo_counts_by_domain = {
+    domain: len(dfs_by_domain[domain]) for domain in distinct_domains
+}
+
+sorted_repo_counts_by_domain = dict(
+    sorted(repo_counts_by_domain.items(), key=lambda item: item[1], reverse=True)
+)
+
+for domain, count in sorted_repo_counts_by_domain.items():
+    print(f"{domain}: {count}")
+
+# Set the directory path for saving the DataFrames
+data_folder = path_to_data_folder
+output_dir = data_folder / "source_code_hosting_platform_dfs"
+
+# Create the output directory if it doesn't exist
+os.makedirs(output_dir, exist_ok=True)
+
+for domain, domain_df in dfs_by_domain.items():
+    if len(domain_df) > 10:
+        domain_df.to_csv(
+            output_dir / f"{domain.replace('/', '_').replace(':', '_')}.csv",
+            index=False,
+        )
+        logger.info(
+            f"Saved {domain} domain DataFrame with {len(domain_df)} entries to {output_dir}"
+        )
