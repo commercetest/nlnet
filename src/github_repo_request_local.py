@@ -5,6 +5,7 @@ import pandas as pd
 from loguru import logger
 from utils.git_utils import get_working_directory_or_git_root
 from utils.export_to_rdf import dataframe_to_ttl
+from urllib.parse import urlparse
 
 
 """
@@ -52,6 +53,24 @@ def parse_args():
         "cloned repositories will be deleted.",
     )
     return parser.parse_args()
+
+
+def get_base_repo_url(url):
+    """
+    Extracts the base repository URL from a GitHub URL.
+
+    Args:
+    url (str): The full GitHub URL.
+
+    Returns:
+    str: The base repository URL if valid, otherwise returns an empty string.
+    """
+    parsed_url = urlparse(url)
+    parts = parsed_url.path.strip("/").split("/")
+    if len(parts) >= 2 and not parts[-1].endswith(".git"):
+        # Assumes standard GitHub URLs which are like /owner/repo or /owner/repo/
+        return f"{parsed_url.scheme}://{parsed_url.netloc}/{parts[0]}/{parts[1]}"
+    return ""
 
 
 def list_test_files(directory, excluded_extensions):
@@ -149,6 +168,10 @@ df["repourl"] = df["repourl"].str.replace(r"^http\b", "https", regex=True)
 # Some of the URLs end with "/". I need to remove them.
 df["repourl"] = df["repourl"].str.rstrip("/")
 
+# Clean and filter URLs
+df["repourl"] = df["repourl"].apply(get_base_repo_url)
+df = df[df["repourl"] != ""]  # Remove any rows with invalid URLs
+
 # Number of repositories to process before saving to CSV
 BATCH_SIZE = 10
 
@@ -160,7 +183,11 @@ for index, row in df.iterrows():
     if row["testfilecountlocal"] != -1 and pd.notna(row["last_commit_hash"]):
         continue
 
-    repo_url = row["repourl"]
+    original_repo_url = row["repourl"]
+    repo_url = get_base_repo_url(original_repo_url)
+    if not repo_url:
+        logger.error(f"Invalid repository URL: {original_repo_url}")
+        continue
     repo_name = Path(repo_url.split("/")[-1]).stem
     clone_dir = clone_dir_base / repo_name
 
