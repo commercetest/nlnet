@@ -11,14 +11,35 @@ import shutil
 
 """
 This script automates the process of cloning GitHub repositories listed in a
-CSV file, counts the number of test files in each repository, and saves the
-count and the last commit hash back to the CSV. The script is designed to handle
-interruptions and errors more robustly by independently verifying the completion
-of each critical operation (cloning, commit hash retrieval, and test file counting).
-It saves progress incrementally and resumes where it left off, ensuring that
-partial data from previous runs is handled properly. Users can specify excluded
-file extensions and choose a custom clone directory. In the end, the script will
-convert the result to Turtle format and saves the file.
+CSV file, counts the number of test files in each repository, and saves both
+the count and the last commit hash back to the CSV. It is designed to handle
+interruptions and errors more robustly by independently verifying the
+completion of each critical operation including cloning, commit hash retrieval,
+and test file counting. The script saves progress incrementally and can resume
+where it left off, ensuring that data from previous runs is properly managed.
+
+Enhancements include:
+- Ability to parse and correct GitHub URLs to ensure only repository roots are
+targeted.
+- Exclusion of specific file extensions during the test file count to tailor
+the data collection.
+- Optional retention of cloned repositories post-processing, controlled via
+command-line arguments.
+- Batch processing capabilities to manage large sets of data efficiently and
+save progress periodically.
+- Conversion of the final data collection to Turtle (TTL) format for RDF
+compliant data storage.
+
+Users can specify excluded file extensions and choose a custom directory for
+cloning repositories.
+The end of the script converts the result to Turtle format and saves the file,
+facilitating easy integration with semantic web technologies.
+
+Command Line Arguments:
+- --exclude: Specify file extensions to exclude from test file counts.
+- --clone-dir: Set a custom directory for cloning the repositories.
+- --keep-clones: Option to retain cloned repositories after processing, which
+can be useful for subsequent manual reviews or further automated tasks.
 """
 
 
