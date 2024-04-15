@@ -6,6 +6,7 @@ from loguru import logger
 from utils.git_utils import get_working_directory_or_git_root
 from utils.export_to_rdf import dataframe_to_ttl
 from urllib.parse import urlparse
+import shutil
 
 
 """
@@ -42,9 +43,7 @@ def parse_args():
             / "data"
             / "cloned_repo_second_run"
         ),
-        # default="/Volumes/BEXO MAN",
         help="Defaults to a subdirectory within the project's data folder.",
-        # help="Directory to clone repositories into. Defaults to the USB drive" " path.",
     )
     parser.add_argument(
         "--keep-clones",
@@ -77,7 +76,6 @@ def list_test_files(directory, excluded_extensions):
     """List test files in the directory, excluding specified extensions."""
     logger.info(f"Processing the directory {directory}")
     test_files = []
-
     for item in directory.rglob("*"):
         # Check if the item is a file and either the file or its parent
         # directory contains 'test'
@@ -250,11 +248,10 @@ if processed_count > 0:
     logger.info("Final batch processed. DataFrame saved.")
 
     # Cleanup based on user's command-line option
-    # if (
-    #     not args.keep_clones
-    # ):  # If user did not specify --keep-clones, delete the directory
-    #     shutil.rmtree(clone_dir)
-
+    if (
+        not args.keep_clones
+    ):  # If user did not specify --keep-clones, delete the directory
+        shutil.rmtree(clone_dir)
 
 logger.info("All repositories processed. DataFrame saved.")
 
