@@ -60,9 +60,7 @@ def parse_args():
         "--clone-dir",
         type=str,
         default=str(
-            Path(get_working_directory_or_git_root())
-            / "data"
-            / "cloned_repo_second_run"
+            Path(get_working_directory_or_git_root()) / "data" / "cloned_repos"
         ),
         help="Defaults to a subdirectory within the project's data folder.",
     )
@@ -88,9 +86,10 @@ def get_base_repo_url(url):
     parsed_url = urlparse(url)
     parts = parsed_url.path.strip("/").split("/")
     if len(parts) >= 2 and not parts[-1].endswith(".git"):
-        # Assumes standard GitHub URLs which are like /owner/repo or /owner/repo/
+        # Assumes standard GitHub URLs which are like /owner/repo or /owner/
+        # repo/
         return f"{parsed_url.scheme}://{parsed_url.netloc}/{parts[0]}/{parts[1]}"
-    return ""
+    return None
 
 
 def list_test_files(directory, excluded_extensions):
@@ -109,9 +108,10 @@ def list_test_files(directory, excluded_extensions):
     return test_files
 
 
-def get_last_commit_hash(repo_dir: Path) -> str:
+def get_last_commit_hash(repo_dir: Path):
     """
-    Fetches the hash of the last commit of the Git repository located in repo_dir.
+    Fetches the hash of the last commit of the Git repository located in
+    repo_dir.
 
     Parameters:
     - repo_dir (Path): The path to the cloned Git repository.
@@ -132,10 +132,8 @@ def get_last_commit_hash(repo_dir: Path) -> str:
         return result.stdout.strip()  # Return the commit hash, stripped of any
         # newline characters
     except subprocess.CalledProcessError as e:
-        logger.error(
-            f"Failed to fetch last commit hash for {repo_dir}." f" Exception: {e}"
-        )
-        return ""  # Return an empty string to indicate failure
+        logger.error(f"Failed to fetch last commit hash for {repo_dir}. Exception: {e}")
+        return None  # Return None to indicate failure
 
 
 args = parse_args()
@@ -148,7 +146,8 @@ repo_root = get_working_directory_or_git_root()
 updated_csv_path = repo_root / "data" / "updated_local_github_df_test_count.csv"
 clone_dir_base = Path(args.clone_dir)
 
-clone_dir_base.mkdir(parents=True, exist_ok=True)  # Ensures the directory exists
+# Ensures the directory exists
+clone_dir_base.mkdir(parents=True, exist_ok=True)
 
 if updated_csv_path.exists():
     logger.info("Resuming from previously saved progress.")
@@ -171,7 +170,10 @@ if "repourl" in df.columns:
 
     # Log the incomplete URLs
     if not incomplete_urls.empty:
-        logger.info("Incomplete GitHub URLs found and will be excluded:")
+        logger.info(
+            f"{len(incomplete_urls)} incomplete GitHub URLs found and "
+            f"will be excluded:"
+        )
         for url in incomplete_urls["repourl"]:
             logger.info(f"Excluding the repourl : {url}")
 
@@ -205,7 +207,7 @@ for index, row in df.iterrows():
     original_repo_url = row["repourl"]
     repo_url = get_base_repo_url(original_repo_url)
     if not repo_url:
-        logger.error(f"Invalid repository URL: {original_repo_url}")
+        logger.info(f"Invalid repository URL: {original_repo_url}")
         continue
     repo_name = Path(repo_url.split("/")[-1]).stem
     clone_dir = clone_dir_base / repo_name
@@ -223,7 +225,8 @@ for index, row in df.iterrows():
 
             # Fetch the last commit hash and store it in the DataFrame
             last_commit_hash = get_last_commit_hash(clone_dir)
-            df.at[index, "last_commit_hash"] = last_commit_hash
+            if last_commit_hash is not None:
+                df.at[index, "last_commit_hash"] = last_commit_hash
 
             # On successful clone, increment the processed_count
             processed_count += 1
@@ -232,7 +235,7 @@ for index, row in df.iterrows():
             logger.error(
                 f"Failed to clone the repo: {repo_name}." f" " f"Exception: {e}"
             )
-            df.at[index, "testfilecountlocal"] = 0
+            df.at[index, "testfilecountlocal"] = -1
 
             # Even on failure, consider it processed for this batch
             processed_count += 1
@@ -258,7 +261,10 @@ for index, row in df.iterrows():
     if processed_count >= BATCH_SIZE:
         # Save the DataFrame to CSV
         df.to_csv(updated_csv_path, index=False)
-        logger.info(f"Batch of {BATCH_SIZE} repositories processed. Progress saved.")
+        logger.info(
+            f"Batch of {BATCH_SIZE} repositories processed. "
+            f"Progress saved in {updated_csv_path}."
+        )
 
         # Reset the processed_count for the next batch
         processed_count = 0
@@ -266,7 +272,7 @@ for index, row in df.iterrows():
 # Save any remaining changes at the end of processing
 if processed_count > 0:
     df.to_csv(updated_csv_path, index=False)
-    logger.info("Final batch processed. DataFrame saved.")
+    logger.info(f"Final batch processed. DataFrame saved in {updated_csv_path}.")
 
     # Cleanup based on user's command-line option
     if (
