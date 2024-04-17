@@ -85,7 +85,7 @@ def get_base_repo_url(url):
     url (str): The full GitHub URL.
 
     Returns:
-    str: The base repository URL if valid, otherwise returns an empty.
+    str: The base repository URL if valid, otherwise returns None.
     """
     parsed_url = urlparse(url)
     parts = parsed_url.path.strip("/").split("/")
@@ -268,9 +268,10 @@ with open(test_file_list_path, "a") as file:
                 f"{name}\n" for name in test_file_names
             )  # Write each test file name
             file.write("\n")  # Add a blank line for separation
-
-            formatted_names = "\n".join(test_file_names)
-            logger.info(f"Test file names for {repo_name}:\n{formatted_names}")
+            logger.info(
+                f"Test file names for the repo `{repo_name}`"
+                f" has been written to '{test_file_list_path}'"
+            )
 
         processed_count += 1
 
