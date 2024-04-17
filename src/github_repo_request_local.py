@@ -8,38 +8,42 @@ from utils.export_to_rdf import dataframe_to_ttl
 from urllib.parse import urlparse
 import shutil
 
-
 """
 This script automates the process of cloning GitHub repositories listed in a
 CSV file, counts the number of test files in each repository, and saves both
-the count and the last commit hash back to the CSV. It is designed to handle
+the count and the last commit hash back to the CSV. Additionally, it writes the
+repository URL followed by the names of all test files found within that
+repository to a text file, facilitating detailed record-keeping and auditing of
+test file existence across repositories. The script is designed to handle
 interruptions and errors more robustly by independently verifying the
 completion of each critical operation including cloning, commit hash retrieval,
-and test file counting. The script saves progress incrementally and can resume
-where it left off, ensuring that data from previous runs is properly managed.
+test file counting, and the writing of test file records. It saves progress
+incrementally and can resume where it left off, ensuring that data from previous
+runs is properly managed.
 
 Enhancements include:
 - Ability to parse and correct GitHub URLs to ensure only repository roots are
-targeted.
+  targeted.
 - Exclusion of specific file extensions during the test file count to tailor
-the data collection.
+  the data collection.
 - Optional retention of cloned repositories post-processing, controlled via
-command-line arguments.
+  command-line arguments.
 - Batch processing capabilities to manage large sets of data efficiently and
-save progress periodically.
+  save progress periodically.
 - Conversion of the final data collection to Turtle (TTL) format for RDF
-compliant data storage.
+  compliant data storage.
+- Writing of repository URLs and associated test file names to a text file for
+  easy auditing and verification.
 
 Users can specify excluded file extensions and choose a custom directory for
-cloning repositories.
-The end of the script converts the result to Turtle format and saves the file,
-facilitating easy integration with semantic web technologies.
+cloning repositories. The end of the script converts the result to Turtle format
+and saves the file, facilitating easy integration with semantic web technologies.
 
 Command Line Arguments:
 - --exclude: Specify file extensions to exclude from test file counts.
 - --clone-dir: Set a custom directory for cloning the repositories.
 - --keep-clones: Option to retain cloned repositories after processing, which
-can be useful for subsequent manual reviews or further automated tasks.
+  can be useful for subsequent manual reviews or further automated tasks.
 """
 
 
@@ -81,7 +85,7 @@ def get_base_repo_url(url):
     url (str): The full GitHub URL.
 
     Returns:
-    str: The base repository URL if valid, otherwise returns an empty string.
+    str: The base repository URL if valid, otherwise returns an empty.
     """
     parsed_url = urlparse(url)
     parts = parsed_url.path.strip("/").split("/")
@@ -117,7 +121,7 @@ def get_last_commit_hash(repo_dir: Path):
     - repo_dir (Path): The path to the cloned Git repository.
 
     Returns:
-    - str: The hash of the last commit if successful, an empty string otherwise.
+    - str: The hash of the last commit if successful, None otherwise.
     """
     try:
         # Execute the git command to get the last commit hash
@@ -191,7 +195,7 @@ df["repourl"] = df["repourl"].str.rstrip("/")
 
 # Clean and filter URLs
 df["repourl"] = df["repourl"].apply(get_base_repo_url)
-df = df[df["repourl"] != ""]  # Remove any rows with invalid URLs
+df = df[df["repourl"].notna()]  # Remove any rows with invalid URLs
 
 # Number of repositories to process before saving to CSV
 BATCH_SIZE = 10
@@ -199,75 +203,88 @@ BATCH_SIZE = 10
 # Track the number of processed repositories in the current batch
 processed_count = 0
 
-for index, row in df.iterrows():
-    # Check if we need to skip this repository because it's fully processed
-    if row["testfilecountlocal"] != -1 and pd.notna(row["last_commit_hash"]):
-        continue
+# Define the path for the text file where test file names and URLs will be saved
+test_file_list_path = repo_root / "data" / "test_files_list.txt"
 
-    original_repo_url = row["repourl"]
-    repo_url = get_base_repo_url(original_repo_url)
-    if not repo_url:
-        logger.info(f"Invalid repository URL: {original_repo_url}")
-        continue
-    repo_name = Path(repo_url.split("/")[-1]).stem
-    clone_dir = clone_dir_base / repo_name
-
-    # Clone only if directory doesn't exist
-    if not clone_dir.exists():
-        try:
-            logger.info(f"Trying to clone {repo_url} into {clone_dir}")
-            subprocess.run(
-                ["git", "clone", repo_url, str(clone_dir)],
-                check=True,
-                capture_output=True,
-            )
-            logger.info(f"Successfully cloned the repo: {repo_name}")
-
-            # Fetch the last commit hash and store it in the DataFrame
-            last_commit_hash = get_last_commit_hash(clone_dir)
-            if last_commit_hash is not None:
-                df.at[index, "last_commit_hash"] = last_commit_hash
-
-            # On successful clone, increment the processed_count
-            processed_count += 1
-
-        except subprocess.CalledProcessError as e:
-            logger.error(
-                f"Failed to clone the repo: {repo_name}." f" " f"Exception: {e}"
-            )
-            df.at[index, "testfilecountlocal"] = -1
-
-            # Even on failure, consider it processed for this batch
-            processed_count += 1
-
+# Open the text file just before the loop begins
+with open(test_file_list_path, "a") as file:
+    for index, row in df.iterrows():
+        # Check if we need to skip this repository because it's fully processed
+        if row["testfilecountlocal"] != -1 and pd.notna(row["last_commit_hash"]):
             continue
 
-    # Always attempt to fetch the last commit hash if not already fetched
-    if pd.isna(row["last_commit_hash"]):
-        last_commit_hash = get_last_commit_hash(clone_dir)
-        df.at[index, "last_commit_hash"] = last_commit_hash
+        original_repo_url = row["repourl"]
+        repo_url = get_base_repo_url(original_repo_url)
+        if not repo_url or repo_url is None:
+            logger.info(f"Invalid repository URL: {original_repo_url}")
+            continue
+        repo_name = Path(repo_url.split("/")[-1]).stem
+        clone_dir = clone_dir_base / repo_name
 
-    # Count test files if not already counted
-    if row["testfilecountlocal"] == -1:
-        test_file_names = list_test_files(clone_dir, args.exclude)
-        count = len(test_file_names)
-        df.at[index, "testfilecountlocal"] = count
-        formatted_names = "\n".join(test_file_names)
-        logger.info(f"Test file names for {repo_name}:\n{formatted_names}")
+        # Clone only if directory doesn't exist
+        if not clone_dir.exists():
+            try:
+                logger.info(f"Trying to clone {repo_url} into {clone_dir}")
+                subprocess.run(
+                    ["git", "clone", repo_url, str(clone_dir)],
+                    check=True,
+                    capture_output=True,
+                )
+                logger.info(f"Successfully cloned the repo: {repo_name}")
 
-    processed_count += 1
+                # Fetch the last commit hash and store it in the DataFrame
+                last_commit_hash = get_last_commit_hash(clone_dir)
+                if last_commit_hash is not None:
+                    df.at[index, "last_commit_hash"] = last_commit_hash
 
-    # Processed count increment and batch check
-    if processed_count >= BATCH_SIZE:
-        # Save the DataFrame to CSV
-        df.to_csv(updated_csv_path, index=False)
-        logger.info(
-            f"Batch of {BATCH_SIZE} repositories processed. "
-            f"Progress saved in {updated_csv_path}."
-        )
+                # On successful clone, increment the processed_count
+                processed_count += 1
 
-        # Reset the processed_count for the next batch
-        processed_count = 0
+            except subprocess.CalledProcessError as e:
+                logger.error(
+                    f"Failed to clone the repo: {repo_name}." f" " f"Exception: {e}"
+                )
+                df.at[index, "testfilecountlocal"] = -1
+
+                # Even on failure, consider it processed for this batch
+                processed_count += 1
+
+                continue
+
+        # Always attempt to fetch the last commit hash if not already fetched
+        if pd.isna(row["last_commit_hash"]):
+            last_commit_hash = get_last_commit_hash(clone_dir)
+            df.at[index, "last_commit_hash"] = last_commit_hash
+
+        # Count test files if not already counted
+        if row["testfilecountlocal"] == -1:
+            test_file_names = list_test_files(clone_dir, args.exclude)
+            count = len(test_file_names)
+            df.at[index, "testfilecountlocal"] = count
+
+            # Write the repository URL and each test file name to the text file
+            file.write(f"Repository URL: {repo_url}\n")  # Write the repo URL
+            file.writelines(
+                f"{name}\n" for name in test_file_names
+            )  # Write each test file name
+            file.write("\n")  # Add a blank line for separation
+
+            formatted_names = "\n".join(test_file_names)
+            logger.info(f"Test file names for {repo_name}:\n{formatted_names}")
+
+        processed_count += 1
+
+        # Processed count increment and batch check
+        if processed_count >= BATCH_SIZE:
+            # Save the DataFrame to CSV
+            df.to_csv(updated_csv_path, index=False)
+            logger.info(
+                f"Batch of {BATCH_SIZE} repositories processed. "
+                f"Progress saved in {updated_csv_path}."
+            )
+
+            # Reset the processed_count for the next batch
+            processed_count = 0
 
 # Save any remaining changes at the end of processing
 if processed_count > 0:
