@@ -1,4 +1,6 @@
-from src.github_repo_request_local import get_base_repo_url
+import pytest
+from src.github_repo_request_local import get_base_repo_url, filter_incomplete_urls
+import pandas as pd
 
 
 def test_get_base_repo_url():
@@ -58,3 +60,54 @@ def test_get_base_repo_url():
         get_base_repo_url("https://github.com/getdnsapi/stubby.git?branch=main")
         == "https://github.com/getdnsapi/stubby"
     )
+
+
+@pytest.mark.parametrize(
+    "data, expected_length, expected_urls",
+    [
+        # Test with an empty DataFrame
+        ({"repourl": []}, 0, []),
+        # DataFrame without the 'repourl' column
+        ({"other_column": ["data1", "data2"]}, 2, []),
+        # DataFrame with various types of URLs including None and empty strings
+        (
+            {
+                "repourl": [
+                    "https://github.com/user/repo",
+                    None,
+                    "https://github.com/user",
+                    "",
+                ]
+            },
+            1,
+            ["https://github.com/user/repo"],
+        ),
+        # All valid URLs
+        (
+            {
+                "repourl": [
+                    "https://github.com/user/repo",
+                    "https://github.com/user2/repo2",
+                ]
+            },
+            2,
+            ["https://github.com/user/repo", "https://github.com/user2/repo2"],
+        ),
+        # All incomplete URLs
+        ({"repourl": ["https://github.com/user", "https://github.com"]}, 0, []),
+        # Mixed completeness in URLs
+        (
+            {"repourl": ["https://github.com/user/repo", "https://github.com/user"]},
+            1,
+            ["https://github.com/user/repo"],
+        ),
+    ],
+)
+def test_filter_incomplete_urls(data, expected_length, expected_urls):
+    df = pd.DataFrame(data)
+    result = filter_incomplete_urls(df)
+    assert len(result) == expected_length, (
+        "The number of returned rows does not match " "the expected value."
+    )
+    for url in expected_urls:
+        assert url in result["repourl"].values, f"{url} should be in the result set."
