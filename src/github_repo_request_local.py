@@ -148,18 +148,19 @@ def get_last_commit_hash(repo_dir: Path):
         return result.stdout.strip()  # Return the commit hash, stripped of any
         # newline characters
     except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to fetch last commit hash for {repo_dir}. Exception: {e}")
+        logger.error(
+            f"Failed to fetch last commit hash for {repo_dir}. " f"Exception: {e}"
+        )
         return None  # Return None to indicate failure
 
 
 def filter_incomplete_urls(df):
     """
     Filters rows in a DataFrame based on the completeness of the 'repourl' URLs.
-    Handles None values by considering them as incomplete URLs.
+    Handles None values and non-string types by considering them as incomplete URLs.
 
     Args:
-        df (pd.DataFrame): DataFrame containing a column named 'repourl' with
-        URLs.
+        df (pd.DataFrame): DataFrame containing a column named 'repourl' with URLs.
 
     Returns:
         pd.DataFrame: DataFrame with rows containing complete URLs.
@@ -174,10 +175,8 @@ def filter_incomplete_urls(df):
 
     # Helper function to determine if a URL is complete
     def is_complete_url(url):
-        if url is None:  # Check for None values directly
-            logger.info(
-                'Found a"repourl" with "None" value. This row will be' "excluded."
-            )
+        # Check if the url is not a string
+        if not isinstance(url, str):
             return False
         parts = url.rstrip("/").split("/")
         return len(parts) >= 5
