@@ -157,3 +157,33 @@ def test_filter_urls_with_various_data_types(data, expected_length):
             assert isinstance(url, str), (
                 "All returned 'repourl' values should " "be strings."
             )
+
+
+@pytest.mark.parametrize(
+    "url, is_valid",
+    [
+        # Properly formatted URL with a query string, follows the correct
+        # structure for HTTP URLs including parameters.
+        ("https://example.com/over/there?name=ferret", True),
+        # Single quotes are unsafe and should be encoded; Potentially
+        # problematic or unsafe
+        ("http://example.com/special'chars", False),
+        # Angle brackets are invalid in URLs unless encoded because they could
+        # be misinterpreted as HTML tags, so this is False. Invalid characters
+        # in domain
+        ("http://<notvalid>.com", False),
+        # Not a HTTP/HTTPS URL
+        ("ftp://example.com/resource", False),
+        # Contains an unencoded space, which can cause issues in URL parsing
+        # and is generally not secure or standard, resulting in False.
+        ("https://example.com/sub dir", False),
+        # Includes unencoded double quotes, which are unsafe and should be
+        # encoded in URLs to prevent breaking out of URL contexts in HTML or
+        # JavaScript, therefore False.
+        ('https://example.com/"quotes"', False),  # Quotes not encoded
+    ],
+)
+def test_url_with_special_characters(url, is_valid):
+    df = pd.DataFrame({"repourl": [url]})
+    result = filter_incomplete_urls(df)
+    assert (len(result) == 1) == is_valid, f"URL '{url}' validation failed."
