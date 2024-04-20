@@ -152,6 +152,53 @@ def get_last_commit_hash(repo_dir: Path):
         return None  # Return None to indicate failure
 
 
+def filter_incomplete_urls(df):
+    """
+    Filters rows in a DataFrame based on the completeness of the 'repourl' URLs.
+    Handles None values by considering them as incomplete URLs.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing a column named 'repourl' with
+        URLs.
+
+    Returns:
+        pd.DataFrame: DataFrame with rows containing complete URLs.
+    """
+    if "repourl" not in df.columns:
+        logger.error(
+            "DataFrame does not contain 'repourl' column. Returning the input "
+            "dataframe."
+        )
+        # Return the original DataFrame if the 'repourl' column is missing
+        return df
+
+    # Helper function to determine if a URL is complete
+    def is_complete_url(url):
+        if url is None:  # Check for None values directly
+            logger.info(
+                'Found a"repourl" with "None" value. This row will be' "excluded."
+            )
+            return False
+        parts = url.rstrip("/").split("/")
+        return len(parts) >= 5
+
+    # Identify rows with incomplete URLs using the helper function
+    incomplete_urls = df[~df["repourl"].apply(is_complete_url)]
+
+    # Log the incomplete URLs
+    if not incomplete_urls.empty:
+        logger.info(
+            f"{len(incomplete_urls)} incomplete GitHub URLs found and will be "
+            f"excluded:"
+        )
+        for url in incomplete_urls["repourl"]:
+            logger.info(f"Excluding the repourl: {url}")
+
+    # Filter out incomplete URLs using the helper function
+    filtered_df = df[df["repourl"].apply(is_complete_url)]
+    return filtered_df
+
+
 if __name__ == "__main__":
     args = parse_args()
     # Log the excluded file extensions
@@ -179,22 +226,7 @@ if __name__ == "__main__":
             logger.error(f"CSV file not found at {csv_file_path}.")
 
     # Filter out rows where the URL doesn't have a repository name (83 rows)
-    if "repourl" in df.columns:
-        # Identify rows with incomplete URLs
-        incomplete_urls = df[
-            df["repourl"].apply(lambda x: len(x.rstrip("/").split("/")) < 5)
-        ]
-
-        # Log the incomplete URLs
-        if not incomplete_urls.empty:
-            logger.info(
-                f"{len(incomplete_urls)} incomplete GitHub URLs found and "
-                f"will be excluded:"
-            )
-            for url in incomplete_urls["repourl"]:
-                logger.info(f"Excluding the repourl : {url}")
-
-        df = df[df["repourl"].apply(lambda x: len(x.rstrip("/").split("/")) >= 5)]
+    df = filter_incomplete_urls(df)
 
     if "last_commit_hash" not in df.columns:
         df["last_commit_hash"] = None  # Initialize the column with None
@@ -215,13 +247,15 @@ if __name__ == "__main__":
     # Track the number of processed repositories in the current batch
     processed_count = 0
 
-    # Define the path for the text file where test file names and URLs will be saved
+    # Define the path for the text file where test file names and URLs will be
+    # saved
     test_file_list_path = repo_root / "data" / "test_files_list.txt"
 
     # Open the text file just before the loop begins
     with open(test_file_list_path, "a") as file:
         for index, row in df.iterrows():
-            # Check if we need to skip this repository because it's fully processed
+            # Check if we need to skip this repository because it's fully
+            # processed
             if row["testfilecountlocal"] != -1 and pd.notna(row["last_commit_hash"]):
                 continue
 
