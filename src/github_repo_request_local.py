@@ -74,6 +74,18 @@ def parse_args():
         help="Keep cloned repositories after processing. If not specified, "
         "cloned repositories will be deleted.",
     )
+    parser.add_argument(
+        "--input-file",
+        type=str,
+        default=str(Path("data/original_github_df.csv")),
+        help="Path to the input CSV file.",
+    )
+    parser.add_argument(
+        "--output-file",
+        type=str,
+        default=str(Path("data/updated_local_github_df_test_count.csv")),
+        help="Path to the output CSV file.",
+    )
     return parser.parse_args()
 
 
@@ -200,13 +212,17 @@ def filter_incomplete_urls(df):
 
 if __name__ == "__main__":
     args = parse_args()
+    input_file = args.input_file
+    output_file = args.output_file
     # Log the excluded file extensions
     logger.info(f"Excluded file extensions: {', '.join(args.exclude)}")
 
     # Use get_working_directory_or_git_root to define paths relative to the
     # repository root
     repo_root = get_working_directory_or_git_root()
-    updated_csv_path = repo_root / "data" / "updated_local_github_df_test_count.csv"
+    # updated_csv_path = repo_root / "data" / "updated_local_github_df_test_count1.csv"
+    updated_csv_path = repo_root / output_file
+    logger.info(f"updated_csv_path is: {updated_csv_path}")
     clone_dir_base = Path(args.clone_dir)
 
     # Ensures the directory exists
@@ -216,7 +232,7 @@ if __name__ == "__main__":
         logger.info("Resuming from previously saved progress.")
         df = pd.read_csv(updated_csv_path)
     else:
-        csv_file_path = repo_root / "data" / "original_github_df.csv"
+        csv_file_path = repo_root / input_file
 
         if csv_file_path.exists():
             df = pd.read_csv(csv_file_path)
