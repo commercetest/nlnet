@@ -110,4 +110,50 @@ def test_filter_incomplete_urls(data, expected_length, expected_urls):
         "The number of returned rows does not match " "the expected value."
     )
     for url in expected_urls:
-        assert url in result["repourl"].values, f"{url} should be in the result set."
+        assert url in result["repourl"].values, f"{url} should be in the " f"result set"
+
+
+@pytest.mark.parametrize(
+    "data, expected_length",
+    [
+        # Testing different data types
+        (
+            {
+                "repourl": [
+                    None,
+                    "https://github.com/user/repo",
+                    12345,
+                    987.654,
+                    True,
+                    pd.Timestamp("20230101"),
+                ]
+            },
+            1,
+        ),
+        # Test with all entries being non-string types
+        ({"repourl": [12345, 67890, False, pd.Timestamp("20240101"), 987.654]}, 0),
+        # Test with mixed valid URLs and non-string types
+        (
+            {
+                "repourl": [
+                    "https://github.com/user/repo",
+                    "https://github.com/user2/repo2",
+                    12345,
+                    "",
+                ]
+            },
+            2,
+        ),
+    ],
+)
+def test_filter_urls_with_various_data_types(data, expected_length):
+    df = pd.DataFrame(data)
+    result = filter_incomplete_urls(df)
+    assert len(result) == expected_length, (
+        "The number of returned rows does " "not match the expected value."
+    )
+    if expected_length > 0:
+        for url in result["repourl"]:
+            assert isinstance(url, str), (
+                "All returned 'repourl' values should " "be strings."
+            )
