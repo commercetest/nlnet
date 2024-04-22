@@ -51,17 +51,38 @@ genbadge tests --output-file reports/junit/tests-badge.svg
 
    #### Overview
    
-   This Python script automates the cloning and analysis of GitHub repositories. Designed for robustness, it handles interruptions by
-   saving progress, allowing for resumption without data loss. It provides the flexibility to exclude specific file types and to set
-   a custom directory for repository clones.
+   This script automates the process of cloning GitHub repositories listed in a CSV file, counts the number of test files in each repository, and saves both the count and the last    commit hash back to the CSV. Additionally, it writes the repository URL followed by the names of all test files found within that repository to a specified text file,              facilitating detailed record-keeping and auditing of test file existence across repositories. The script is designed to handle interruptions and errors more robustly by            independently verifying the completion of each critical operation including cloning, commit hash retrieval, test file counting, and the writing of test file records. It saves      progress incrementally and can resume where it left off, ensuring that data from previous runs is properly managed.
 
-    #### Key Features
+   #### Enhancements
+
+   This script includes several enhancements to improve its functionality:
    
-     - **Cloning Automation**: Clone repositories from a list provided in a CSV file.
-     - **Test File Counting**: Count the number of 'test' files within each repository, ignoring files with user-defined extensions.
-     - **Progress Tracking**: Save and resume progress, ideal for long-running processes.
-     - **Customizability**: Specify file extensions to exclude and designate a custom directory for cloned repositories via command-            line arguments.
-     - **Clean-up Option**: Choose whether to keep or remove cloned repositories after processing.
+   - **GitHub URL Parsing:** Ensures only repository roots are targeted by parsing and correcting GitHub URLs.
+   - **File Extension Exclusion:** Allows exclusion of specific file extensions during the test file count to tailor the data collection.
+   - **Retention of Clones:** Optional retention of cloned repositories post-processing, which can be useful for subsequent manual reviews or further automated tasks.
+   - **Batch Processing:** Manages large sets of data efficiently and saves progress periodically.
+   - **Turtle Format Conversion:** Converts the final data collection to Turtle (TTL) format for RDF compliant data storage, with the ability to specify the output location.
+   - **Auditing and Verification:** Writes repository URLs and associated test file names to a text file for easy auditing and verification. The location of this text file can be       specified via command-line arguments.
+
+   #### Configuration
+
+   Users can customize their experience with the script through several command-line arguments:
+   
+   - `--exclude`: Specify file extensions to exclude from test file counts.
+   - `--clone-dir`: Set a custom directory for cloning the repositories.
+   - `--keep-clones`: Option to retain cloned repositories after processing.
+   - `--input-file`: Path to the input CSV file.
+   - `--output-file`: Path to the output CSV file that includes test file counts and last commit hashes.
+   - `--test-file-list`: Path to the text file for recording repository URLs and test file names.
+   - `--ttl-file`: Path to save the Turtle (TTL) format file.
+
+   #### Usage
+   
+   To use this script, you can specify all necessary command line arguments based on your requirements. For example:
+
+   ```bash
+   python 1. github_repo_request_local.py --input-file path/to/input.csv --output-file path/to/output.csv
+
 
 
 3. github_repo_requests.py
