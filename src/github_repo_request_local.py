@@ -13,9 +13,9 @@ This script automates the process of cloning GitHub repositories listed in a
 CSV file, counts the number of test files in each repository, and saves both
 the count and the last commit hash back to the CSV. Additionally, it writes the
 repository URL followed by the names of all test files found within that
-repository to a text file, facilitating detailed record-keeping and auditing of
-test file existence across repositories. The script is designed to handle
-interruptions and errors more robustly by independently verifying the
+repository to a specified text file, facilitating detailed record-keeping and
+auditing of test file existence across repositories. The script is designed to
+handle interruptions and errors more robustly by independently verifying the
 completion of each critical operation including cloning, commit hash retrieval,
 test file counting, and the writing of test file records. It saves progress
 incrementally and can resume where it left off, ensuring that data from previous
@@ -31,19 +31,27 @@ Enhancements include:
 - Batch processing capabilities to manage large sets of data efficiently and
   save progress periodically.
 - Conversion of the final data collection to Turtle (TTL) format for RDF
-  compliant data storage.
+  compliant data storage, with the ability to specify the output location.
 - Writing of repository URLs and associated test file names to a text file for
-  easy auditing and verification.
+  easy auditing and verification. The location of this text file can be
+  specified via command-line arguments.
 
-Users can specify excluded file extensions and choose a custom directory for
-cloning repositories. The end of the script converts the result to Turtle format
-and saves the file, facilitating easy integration with semantic web technologies.
+Users can specify excluded file extensions, choose a custom directory for
+cloning repositories, and set paths for output files (both CSV and text formats).
+The script also allows specification of the output path for the TTL format file,
+facilitating easy integration with semantic web technologies.
 
 Command Line Arguments:
 - --exclude: Specify file extensions to exclude from test file counts.
 - --clone-dir: Set a custom directory for cloning the repositories.
 - --keep-clones: Option to retain cloned repositories after processing, which
   can be useful for subsequent manual reviews or further automated tasks.
+- --input-file: Path to the input CSV file.
+- --output-file: Path to the output CSV file that includes test file counts and
+  last commit hashes.
+- --test-file-list: Path to the text file for recording repository URLs and
+  test file names.
+- --ttl-file: Path to save the Turtle (TTL) format file.
 """
 
 
@@ -86,6 +94,20 @@ def parse_args():
         default=str(Path("data/updated_local_github_df_test_count.csv")),
         help="Path to the output CSV file.",
     )
+    parser.add_argument(
+        "--ttl-file",
+        type=str,
+        default=str(Path("data/all_data.ttl")),
+        help="Path to save the Turtle (TTL) format file.",
+    )
+    parser.add_argument(
+        "--test-file-list",
+        type=str,
+        default=str(Path("data/test_files_list.txt")),
+        help="Path to the text file for writing repository URLs and test file "
+        "names.",
+    )
+
     return parser.parse_args()
 
 
@@ -227,7 +249,6 @@ if __name__ == "__main__":
     # Use get_working_directory_or_git_root to define paths relative to the
     # repository root
     repo_root = get_working_directory_or_git_root()
-    # updated_csv_path = repo_root / "data" / "updated_local_github_df_test_count1.csv"
     updated_csv_path = repo_root / output_file
     logger.info(f"updated_csv_path is: {updated_csv_path}")
     clone_dir_base = Path(args.clone_dir)
@@ -270,8 +291,10 @@ if __name__ == "__main__":
     processed_count = 0
 
     # Define the path for the text file where test file names and URLs will be
-    # saved
-    test_file_list_path = repo_root / "data" / "test_files_list.txt"
+    # saved otherwise the default path will be used:
+    # repo_root / "data" / "test_files_list.txt"
+    test_file_list_path = repo_root / Path(args.test_file_list)
+    logger.info(f"test_file_list_path is: {test_file_list_path}")
 
     # Open the text file just before the loop begins
     with open(test_file_list_path, "a") as file:
@@ -330,8 +353,9 @@ if __name__ == "__main__":
                 count = len(test_file_names)
                 df.at[index, "testfilecountlocal"] = count
 
-                # Write the repository URL and each test file name to the text file
-                file.write(f"Repository URL: {repo_url}\n")  # Write the repo URL
+                # Write the repository URL and each test file name to the text
+                # file
+                file.write(f"Repository URL: {repo_url}\n")
                 file.writelines(
                     f"{name}\n" for name in test_file_names
                 )  # Write each test file name
@@ -372,8 +396,9 @@ if __name__ == "__main__":
 
     # Exporting the result to an RDF format
 
-    # Get the repository root and define the path to save the TTL file
-    path_to_save_ttl = repo_root / "data" / "all_data.ttl"
+    # Use the path from the arguments to save the TTL file or saving the file
+    # in the default location : "data/all_data.ttl"
+    path_to_save_ttl = repo_root / Path(args.ttl_file)
 
     # Convert DataFrame to Turtle format
     ttl_data = dataframe_to_ttl(df)
