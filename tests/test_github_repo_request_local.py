@@ -1,5 +1,5 @@
 import pytest
-from src.github_repo_request_local import get_base_repo_url, filter_incomplete_urls
+from src.github_repo_request_local import get_base_repo_url, filter_out_incomplete_urls
 import pandas as pd
 
 
@@ -67,45 +67,43 @@ def test_get_base_repo_url():
     [
         # Test with an empty DataFrame
         ({"repourl": []}, 0, []),
-        # DataFrame without the 'repourl' column
-        ({"other_column": ["data1", "data2"]}, 2, []),
         # DataFrame with various types of URLs including None and empty strings
         (
             {
                 "repourl": [
-                    "https://github.com/user/repo",
+                    "https://github.com/owner/repo",
                     None,
-                    "https://github.com/user",
+                    "https://github.com/owner",
                     "",
                 ]
             },
             1,
-            ["https://github.com/user/repo"],
+            ["https://github.com/owner/repo"],
         ),
         # All valid URLs
         (
             {
                 "repourl": [
-                    "https://github.com/user/repo",
-                    "https://github.com/user2/repo2",
+                    "https://github.com/owner1/repo",
+                    "https://github.com/owner2/repo2",
                 ]
             },
             2,
-            ["https://github.com/user/repo", "https://github.com/user2/repo2"],
+            ["https://github.com/owner1/repo", "https://github.com/owner2/repo2"],
         ),
         # All incomplete URLs
-        ({"repourl": ["https://github.com/user", "https://github.com"]}, 0, []),
+        ({"repourl": ["https://github.com/owner", "https://github.com"]}, 0, []),
         # Mixed completeness in URLs
         (
-            {"repourl": ["https://github.com/user/repo", "https://github.com/user"]},
+            {"repourl": ["https://github.com/owner/repo", "https://github.com/owner"]},
             1,
-            ["https://github.com/user/repo"],
+            ["https://github.com/owner/repo"],
         ),
     ],
 )
 def test_filter_incomplete_urls(data, expected_length, expected_urls):
     df = pd.DataFrame(data)
-    result = filter_incomplete_urls(df)
+    result = filter_out_incomplete_urls(df)
     assert len(result) == expected_length, (
         "The number of returned rows does not match " "the expected value."
     )
@@ -121,7 +119,7 @@ def test_filter_incomplete_urls(data, expected_length, expected_urls):
             {
                 "repourl": [
                     None,
-                    "https://github.com/user/repo",
+                    "https://github.com/owner/repo",
                     12345,
                     987.654,
                     True,
@@ -136,8 +134,8 @@ def test_filter_incomplete_urls(data, expected_length, expected_urls):
         (
             {
                 "repourl": [
-                    "https://github.com/user/repo",
-                    "https://github.com/user2/repo2",
+                    "https://github.com/owner/repo",
+                    "https://github.com/owner/repo2",
                     12345,
                     "",
                 ]
@@ -148,7 +146,7 @@ def test_filter_incomplete_urls(data, expected_length, expected_urls):
 )
 def test_filter_urls_with_various_data_types(data, expected_length):
     df = pd.DataFrame(data)
-    result = filter_incomplete_urls(df)
+    result = filter_out_incomplete_urls(df)
     assert len(result) == expected_length, (
         "The number of returned rows does " "not match the expected value."
     )
@@ -185,5 +183,18 @@ def test_filter_urls_with_various_data_types(data, expected_length):
 )
 def test_url_with_special_characters(url, is_valid):
     df = pd.DataFrame({"repourl": [url]})
-    result = filter_incomplete_urls(df)
+    result = filter_out_incomplete_urls(df)
     assert (len(result) == 1) == is_valid, f"URL '{url}' validation failed."
+
+
+@pytest.mark.parametrize(
+    "data, expected_exception",
+    [
+        # Expect a ValueError for DataFrame without the 'repourl' column
+        ({"other_column": ["data1", "data2"]}, ValueError),
+    ],
+)
+def test_filter_incomplete_urls_exceptions(data, expected_exception):
+    df = pd.DataFrame(data)
+    with pytest.raises(expected_exception):
+        filter_out_incomplete_urls(df)
