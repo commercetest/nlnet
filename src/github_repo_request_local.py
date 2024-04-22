@@ -166,24 +166,31 @@ def get_last_commit_hash(repo_dir: Path):
         return None  # Return None to indicate failure
 
 
-def filter_incomplete_urls(df):
+def filter_out_incomplete_urls(df):
     """
-    Filters rows in a DataFrame based on the completeness of the 'repourl' URLs.
-    Handles None values and non-string types by considering them as incomplete URLs.
+    Filters rows in a DataFrame based on the completeness of the 'repourl'
+    URLs. A URL is considered complete if it contains at least five parts,
+    including the protocol, empty segment (for '//'), domain, and at least
+    two path segments, e.g., 'https://github.com/owner/repo'. Raises
+    an error if the required column 'repourl' is missing.
 
     Args:
-        df (pd.DataFrame): DataFrame containing a column named 'repourl' with URLs.
+        df (pd.DataFrame): DataFrame containing URLs.
 
     Returns:
         pd.DataFrame: DataFrame with rows containing complete URLs.
+
+    Raises:
+        ValueError: If the 'repourl' column is missing from the DataFrame.
     """
     if "repourl" not in df.columns:
-        logger.error(
-            "DataFrame does not contain 'repourl' column. Returning the input "
-            "dataframe."
+        logger.critical(
+            "Critical: DataFrame columns are: {}".format(df.columns.tolist())
         )
-        # Return the original DataFrame if the 'repourl' column is missing
-        return df
+        logger.critical(
+            "DataFrame does not contain 'repourl' column. Aborting operation."
+        )
+        raise ValueError("DataFrame must contain a 'repourl' column.")
 
     # Helper function to determine if a URL is complete
     def is_complete_url(url):
@@ -198,9 +205,9 @@ def filter_incomplete_urls(df):
 
     # Log the incomplete URLs
     if not incomplete_urls.empty:
-        logger.info(
-            f"{len(incomplete_urls)} incomplete GitHub URLs found and will be "
-            f"excluded:"
+        logger.warning(
+            f"{len(incomplete_urls)} incomplete GitHub URLs found and will not "
+            f"be analysed:"
         )
         for url in incomplete_urls["repourl"]:
             logger.info(f"Excluding the repourl: {url}")
@@ -241,7 +248,7 @@ if __name__ == "__main__":
             logger.error(f"CSV file not found at {csv_file_path}.")
 
     # Filter out rows where the URL doesn't have a repository name (83 rows)
-    df = filter_incomplete_urls(df)
+    df = filter_out_incomplete_urls(df)
 
     if "last_commit_hash" not in df.columns:
         df["last_commit_hash"] = None  # Initialize the column with None
@@ -354,9 +361,11 @@ if __name__ == "__main__":
         logger.info(f"Final batch processed. DataFrame saved in {updated_csv_path}.")
 
         # Cleanup based on user's command-line option
-        if (
-            not args.keep_clones
-        ):  # If user did not specify --keep-clones, delete the directory
+        if not args.keep_clones:
+            # If user did not specify --keep-clones, delete the directory
+            logger.info(
+                '"--keep-clones" flag was not specified, deleting the ' "directory"
+            )
             shutil.rmtree(clone_dir)
 
     logger.info("All repositories processed. DataFrame saved.")
