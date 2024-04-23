@@ -3,9 +3,10 @@ This script processes a TSV file to create a DataFrame, from which it extracts
 domains and organises entries into separate DataFrames based on these domains.
 Each domain-specific DataFrame is saved as a CSV file if it contains more than
 10 records. This structured approach ensures that data is organised and
-easily accessible for further analysis. Additionally, the script performs
-data cleaning, including checking for null values and duplicates within the
-DataFrame.
+easily accessible for further analysis. Additionally, the script enhances data
+quality by performing essential cleaning operations. It removes rows
+containing null values and eliminates duplicate entries by retaining only the
+first occurrence of each duplicate row.
 
 The script is designed to be flexible, supporting command-line arguments that
 allow users to specify custom paths for the input TSV file and the output
@@ -73,11 +74,26 @@ def parse_args():
 
 
 def check_and_clean_data(df):
+    """
+    Processes the provided DataFrame by removing rows containing null values and
+    duplicate rows, updating the DataFrame in place.
+
+    """
     # Checking for null values
     null_counts = df.isnull().sum()
     if np.any(null_counts):
         logger.info("Null values found:")
         logger.info(null_counts[null_counts > 0])
+
+        # Count rows before dropping
+        initial_count = len(df)
+
+        # Drop rows with any null values in place
+        df.dropna(inplace=True)
+
+        # Log how many rows were dropped
+        rows_dropped = initial_count - len(df)
+        logger.info(f"Dropped {rows_dropped} rows containing null values.")
     else:
         logger.info("No null values found.")
 
