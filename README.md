@@ -16,6 +16,18 @@ The source file is in TSV (Tab Separated Values) format.
 ## Structure of this repo
 In general, much of the work will be identified in this repo's https://github.com/commercetest/nlnet/issues, and various more general notes will be recorded in Wiki pages at https://github.com/commercetest/nlnet/wiki
 
+
+After the `nlnet` repository has been cloned, two options are available for configuring the repository structure based on the intended use of the provided `.tsv` file:
+
+   - Default Repository Structure: The `.tsv` file should be placed directly in the `data` folder within the project repository. This setup allows the scripts to be run without         additional configuration.
+   - Custom Directory: Should a different structure be preferred, a directory can be created within the project repository to store the `.tsv `file. For example, a directory named    `nlnet_data` may be created. Once the `.tsv` file is placed in this new directory, the path must be specified when running the script. The `--input-file` flag should be used        followed by the relative path to the `.tsv file`, as shown below:
+     ```
+     --input-file nlnet_data/tsv_file_name.tsv
+     ```
+
+Informative docstrings detailing the functionality and the supported command-line arguments have been provided at the beginning of each script. Additionally, the `Scripts` section in the README.md offers further guidance on using these arguments.
+
+
 ## Runtime environment
 I'm using miniforge to manage the python environment including packages.
 
