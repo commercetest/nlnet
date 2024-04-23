@@ -104,8 +104,7 @@ def parse_args():
         "--test-file-list",
         type=str,
         default=str(Path("data/test_files_list.txt")),
-        help="Path to the text file for writing repository URLs and test file "
-        "names.",
+        help="Path to the text file for writing repository URLs and test " "filenames.",
     )
 
     return parser.parse_args()
@@ -290,7 +289,7 @@ if __name__ == "__main__":
     # Track the number of processed repositories in the current batch
     processed_count = 0
 
-    # Define the path for the text file where test file names and URLs will be
+    # Define the path for the text file where test filenames and URLs will be
     # saved otherwise the default path will be used:
     # repo_root / "data" / "test_files_list.txt"
     test_file_list_path = repo_root / Path(args.test_file_list)
