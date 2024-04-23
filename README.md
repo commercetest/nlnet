@@ -77,7 +77,29 @@ genbadge tests --output-file reports/junit/tests-badge.svg
    ```bash
    python ginitial_data_preparation.py -input-file path/to/input_file.tsv --output-folder path/to/output_directory
 
-2. github_repo_request_local.py:
+
+2. git_utils.py:
+
+   #### Overview
+
+   This utility module enhances Python scripts by providing robust functions for managing and interacting with Git repositories. It's designed to facilitate the identification of     the Git repository's root and to ensure that scripts operate relative to the correct directory, especially in environments where the execution context might vary.
+
+   #### Features
+
+   Git Repository Root Detection: Determines the root directory of the current Git repository using the git rev-parse --show-toplevel command. This is crucial for scripts that        need to operate relative to the repository root.
+   Context-Aware Path Management: Offers a method to reliably determine the appropriate base directory for file operations, whether inside a Git repository or not, thus enhancing     script portability and robustness.
+
+   #### Usage
+   The functions in this script has been imported in other scripts where nteracting with Git repository is reqired.
+
+   ```
+   from utils.git_utils import get_working_directory_or_git_root
+   work_dir = get_working_directory_or_git_root()
+   print(f"Working directory or Git root: {work_dir}")
+   ```
+
+   
+4. github_repo_request_local.py:
 
    #### Overview
    
@@ -115,7 +137,7 @@ genbadge tests --output-file reports/junit/tests-badge.svg
 
 
 
-3. github_repo_requests.py:
+5. github_repo_requests.py:
 
    #### Overview
 
