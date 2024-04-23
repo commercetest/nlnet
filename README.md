@@ -47,7 +47,37 @@ genbadge tests --output-file reports/junit/tests-badge.svg
 
 ## Scripts
 
-1. github_repo_request_local.py :
+1. initial_data_preparation.py:
+   
+   #### Overview
+
+   This script processes a TSV file to generate a DataFrame from which it extracts domains and organizes entries into separate DataFrames based on these domains. Each domain-         specific DataFrame is saved as a CSV file if it contains more than 10 records. This approach ensures that data is systematically organised and readily accessible for further       analysis.
+
+   The script also enhances data quality through essential cleaning operations. It removes rows containing null values and eliminates duplicate entries, retaining only the first      occurrence of each duplicate row.
+
+   Designed to be highly flexible, the script supports command-line arguments, allowing users to specify custom paths for the input TSV file and the output directories. This makes    the script ideal for integration into automated workflows where paths may vary.
+
+   #### Features
+   
+   - Dynamic Data Handling: Reads a TSV file specified by the user, and extracts critical information.
+   - Data Cleaning: Performs cleaning of the data by removing null values and duplicates.
+   - Domain Extraction: Identifies and extracts the domain from each URL in the 'repourl' column to ascertain the hosting platform.
+   - Data Organisation: Segregates the DataFrame into multiple DataFrames based on unique domains, facilitating focused analysis for each domain.
+   - Conditional Saving: Saves DataFrames that contain more than 10 entries into a structured directory format, tailored specifically for repositories hosted under distinct             domains.
+   - Output Reporting: Generates a count of repositories for each domain, saved into a text file for easy reference and further analysis.
+   - Command Line Arguments
+   - --input-file: Specifies the path to the input TSV file.
+   - --output-folder: Specifies the directory where output CSV files and other results will be saved.
+  
+
+   #### Usage
+   
+   To use this script, you can specify all necessary command line arguments based on your requirements. For example:
+
+   ```bash
+   python ginitial_data_preparation.py -input-file path/to/input_file.tsv --output-folder path/to/output_directory
+
+2. github_repo_request_local.py:
 
    #### Overview
    
@@ -81,11 +111,11 @@ genbadge tests --output-file reports/junit/tests-badge.svg
    To use this script, you can specify all necessary command line arguments based on your requirements. For example:
 
    ```bash
-   python 1. github_repo_request_local.py --input-file path/to/input.csv --output-file path/to/output.csv
+   python github_repo_request_local.py --input-file path/to/input.csv --output-file path/to/output.csv
 
 
 
-3. github_repo_requests.py
+3. github_repo_requests.py:
 
    #### Overview
 
