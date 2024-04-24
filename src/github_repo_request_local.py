@@ -5,7 +5,6 @@ import pandas as pd
 from loguru import logger
 from utils.git_utils import get_working_directory_or_git_root
 from utils.export_to_rdf import dataframe_to_ttl
-from urllib.parse import urlparse
 import shutil
 
 """
@@ -110,37 +109,6 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_base_repo_url(url):
-    """
-    Extracts the base repository URL from a GitHub URL. It handles URLs ending
-     with '.git'.
-
-    Args:
-        url (str): The full GitHub URL.
-
-    Returns:
-        str: The base repository URL if valid, otherwise returns None.
-    """
-    # Return None immediately if the URL is None or empty
-    if not url:
-        return None
-
-    parsed_url = urlparse(url)
-    path = parsed_url.path.strip("/")
-
-    # Check if the path ends with '.git' and strip it off
-    if path.endswith(".git"):
-        path = path[:-4]  # Remove the last 4 characters, '.git'
-
-    parts = path.split("/")
-
-    if len(parts) >= 2:
-        # Format and return the URL with the owner and repository name
-        return f"{parsed_url.scheme}://{parsed_url.netloc}/{parts[0]}/{parts[1]}"
-    else:
-        return None
-
-
 def list_test_files(directory, excluded_extensions):
     """List test files in the directory, excluding specified extensions."""
     logger.info(f"Processing the directory {directory}")
@@ -187,57 +155,6 @@ def get_last_commit_hash(repo_dir: Path):
         return None  # Return None to indicate failure
 
 
-def filter_out_incomplete_urls(df):
-    """
-    Filters rows in a DataFrame based on the completeness of the 'repourl'
-    URLs. A URL is considered complete if it contains at least five parts,
-    including the protocol, empty segment (for '//'), domain, and at least
-    two path segments, e.g., 'https://github.com/owner/repo'. Raises
-    an error if the required column 'repourl' is missing.
-
-    Args:
-        df (pd.DataFrame): DataFrame containing URLs.
-
-    Returns:
-        pd.DataFrame: DataFrame with rows containing complete URLs.
-
-    Raises:
-        ValueError: If the 'repourl' column is missing from the DataFrame.
-    """
-    if "repourl" not in df.columns:
-        logger.critical(
-            "Critical: DataFrame columns are: {}".format(df.columns.tolist())
-        )
-        logger.critical(
-            "DataFrame does not contain 'repourl' column. Aborting operation."
-        )
-        raise ValueError("DataFrame must contain a 'repourl' column.")
-
-    # Helper function to determine if a URL is complete
-    def is_complete_url(url):
-        # Check if the url is not a string
-        if not isinstance(url, str):
-            return False
-        parts = url.rstrip("/").split("/")
-        return len(parts) >= 5
-
-    # Identify rows with incomplete URLs using the helper function
-    incomplete_urls = df[~df["repourl"].apply(is_complete_url)]
-
-    # Log the incomplete URLs
-    if not incomplete_urls.empty:
-        logger.warning(
-            f"{len(incomplete_urls)} incomplete GitHub URLs found and will not "
-            f"be analysed:"
-        )
-        for url in incomplete_urls["repourl"]:
-            logger.info(f"Excluding the repourl: {url}")
-
-    # Filter out incomplete URLs using the helper function
-    filtered_df = df[df["repourl"].apply(is_complete_url)]
-    return filtered_df
-
-
 if __name__ == "__main__":
     args = parse_args()
     input_file = args.input_file
@@ -248,9 +165,11 @@ if __name__ == "__main__":
     # Use get_working_directory_or_git_root to define paths relative to the
     # repository root
     repo_root = get_working_directory_or_git_root()
+    logger.info(f"repo_root is: {repo_root}")
     updated_csv_path = repo_root / output_file
     logger.info(f"updated_csv_path is: {updated_csv_path}")
-    clone_dir_base = Path(args.clone_dir)
+    clone_dir_base = repo_root / Path(args.clone_dir)
+    logger.info(f"clone_dir_base is: {clone_dir_base}")
 
     # Ensures the directory exists
     clone_dir_base.mkdir(parents=True, exist_ok=True)
@@ -267,21 +186,8 @@ if __name__ == "__main__":
         else:
             logger.error(f"CSV file not found at {csv_file_path}.")
 
-    # Filter out rows where the URL doesn't have a repository name (83 rows)
-    df = filter_out_incomplete_urls(df)
-
     if "last_commit_hash" not in df.columns:
         df["last_commit_hash"] = None  # Initialize the column with None
-
-    # replace http with https
-    df["repourl"] = df["repourl"].str.replace(r"^http\b", "https", regex=True)
-
-    # Some of the URLs end with "/". I need to remove them.
-    df["repourl"] = df["repourl"].str.rstrip("/")
-
-    # Clean and filter URLs
-    df["repourl"] = df["repourl"].apply(get_base_repo_url)
-    df = df[df["repourl"].notna()]  # Remove any rows with invalid URLs
 
     # Number of repositories to process before saving to CSV
     BATCH_SIZE = 10
@@ -303,13 +209,13 @@ if __name__ == "__main__":
             if row["testfilecountlocal"] != -1 and pd.notna(row["last_commit_hash"]):
                 continue
 
-            original_repo_url = row["repourl"]
-            repo_url = get_base_repo_url(original_repo_url)
+            repo_url = row["repourl"]
             if not repo_url or repo_url is None:
-                logger.info(f"Invalid repository URL: {original_repo_url}")
+                logger.info(f"Invalid repository URL: {repo_url}")
                 continue
             repo_name = Path(repo_url.split("/")[-1]).stem
             clone_dir = clone_dir_base / repo_name
+            logger.info(f"clone_dir is: {clone_dir}")
 
             # Clone only if directory doesn't exist
             if not clone_dir.exists():
