@@ -9,20 +9,19 @@ import shutil
 
 """
 This script automates the process of cloning GitHub repositories listed in a
-CSV file, counts the number of test files in each repository, and saves both
-the count and the last commit hash back to the CSV. Additionally, it writes the
-repository URL followed by the names of all test files found within that
-repository to a specified text file, facilitating detailed record-keeping and
-auditing of test file existence across repositories. The script is designed to
-handle interruptions and errors more robustly by independently verifying the
-completion of each critical operation including cloning, commit hash retrieval,
-test file counting, and the writing of test file records. It saves progress
-incrementally and can resume where it left off, ensuring that data from previous
-runs is properly managed.
+CSV file, retrieves the last commit hash for each repository, and saves this
+information back to the CSV. It also counts the number of test files in each
+repository, excluding specific file extensions based on command-line arguments,
+and saves both the count and the list of test filenames to a text file. This
+facilitates detailed record-keeping and auditing of test file existence across
+repositories. The script is designed to handle interruptions and errors more
+robustly by independently verifying the completion of each critical operation
+including cloning, commit hash retrieval, test file counting, and the writing
+of test file records. It saves progress incrementally and can resume where it
+left off, ensuring that data from previous runs is properly managed.
 
 Enhancements include:
-- Ability to parse and correct GitHub URLs to ensure only repository roots are
-  targeted.
+
 - Exclusion of specific file extensions during the test file count to tailor
   the data collection.
 - Optional retention of cloned repositories post-processing, controlled via
@@ -31,7 +30,7 @@ Enhancements include:
   save progress periodically.
 - Conversion of the final data collection to Turtle (TTL) format for RDF
   compliant data storage, with the ability to specify the output location.
-- Writing of repository URLs and associated test file names to a text file for
+- Writing of repository URLs and associated test filenames to a text file for
   easy auditing and verification. The location of this text file can be
   specified via command-line arguments.
 
@@ -49,7 +48,7 @@ Command Line Arguments:
 - --output-file: Path to the output CSV file that includes test file counts and
   last commit hashes.
 - --test-file-list: Path to the text file for recording repository URLs and
-  test file names.
+  test filenames.
 - --ttl-file: Path to save the Turtle (TTL) format file.
 """
 
@@ -103,7 +102,7 @@ def parse_args():
         "--test-file-list",
         type=str,
         default=str(Path("data/test_files_list.txt")),
-        help="Path to the text file for writing repository URLs and test " "filenames.",
+        help="Path to the text file for writing repository URLs and test filenames.",
     )
 
     return parser.parse_args()
@@ -169,7 +168,6 @@ if __name__ == "__main__":
     updated_csv_path = repo_root / output_file
     logger.info(f"updated_csv_path is: {updated_csv_path}")
     clone_dir_base = repo_root / Path(args.clone_dir)
-    logger.info(f"clone_dir_base is: {clone_dir_base}")
 
     # Ensures the directory exists
     clone_dir_base.mkdir(parents=True, exist_ok=True)
@@ -238,7 +236,7 @@ if __name__ == "__main__":
 
                 except subprocess.CalledProcessError as e:
                     logger.error(
-                        f"Failed to clone the repo: {repo_name}." f" " f"Exception: {e}"
+                        f"Failed to clone the repo: {repo_name}.Exception: {e}"
                     )
                     df.at[index, "testfilecountlocal"] = -1
 
@@ -247,7 +245,8 @@ if __name__ == "__main__":
 
                     continue
 
-            # Always attempt to fetch the last commit hash if not already fetched
+            # Always attempt to fetch the last commit hash if not already
+            # fetched
             if pd.isna(row["last_commit_hash"]):
                 last_commit_hash = get_last_commit_hash(clone_dir)
                 df.at[index, "last_commit_hash"] = last_commit_hash
@@ -258,12 +257,12 @@ if __name__ == "__main__":
                 count = len(test_file_names)
                 df.at[index, "testfilecountlocal"] = count
 
-                # Write the repository URL and each test file name to the text
+                # Write the repository URL and each test filename to the text
                 # file
                 file.write(f"Repository URL: {repo_url}\n")
                 file.writelines(
                     f"{name}\n" for name in test_file_names
-                )  # Write each test file name
+                )  # Write each test filename
                 file.write("\n")  # Add a blank line for separation
                 logger.info(
                     f"Test file names for the repo `{repo_name}`"
