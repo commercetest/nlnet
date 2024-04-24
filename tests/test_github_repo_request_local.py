@@ -1,5 +1,5 @@
 import pytest
-from src.github_repo_request_local import get_base_repo_url, filter_out_incomplete_urls
+from utils.initial_data_preparation import filter_out_incomplete_urls, get_base_repo_url
 import pandas as pd
 
 
