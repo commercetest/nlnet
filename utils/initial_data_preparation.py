@@ -47,6 +47,7 @@ from pathlib import Path
 from loguru import logger
 from utils.git_utils import get_working_directory_or_git_root
 import os
+from urllib.parse import urlparse
 
 
 def parse_args():
@@ -109,6 +110,88 @@ def check_and_clean_data(df):
         logger.info("No duplicate rows found.")
 
 
+def filter_out_incomplete_urls(df):
+    """
+    Filters rows in a DataFrame based on the completeness of the 'repourl'
+    URLs. A URL is considered complete if it contains at least five parts,
+    including the protocol, empty segment (for '//'), domain, and at least
+    two path segments, e.g., 'https://github.com/owner/repo'. Raises
+    an error if the required column 'repourl' is missing.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing URLs.
+
+    Returns:
+        pd.DataFrame: DataFrame with rows containing complete URLs.
+
+    Raises:
+        ValueError: If the 'repourl' column is missing from the DataFrame.
+    """
+    if "repourl" not in df.columns:
+        logger.critical(
+            "Critical: DataFrame columns are: {}".format(df.columns.tolist())
+        )
+        logger.critical(
+            "DataFrame does not contain 'repourl' column. Aborting operation."
+        )
+        raise ValueError("DataFrame must contain a 'repourl' column.")
+
+    # Helper function to determine if a URL is complete
+    def is_complete_url(url):
+        # Check if the url is not a string
+        if not isinstance(url, str):
+            return False
+        parts = url.rstrip("/").split("/")
+        return len(parts) >= 5
+
+    # Identify rows with incomplete URLs using the helper function
+    incomplete_urls = df[~df["repourl"].apply(is_complete_url)]
+
+    # Log the incomplete URLs
+    if not incomplete_urls.empty:
+        logger.warning(
+            f"{len(incomplete_urls)} incomplete GitHub URLs found and will not "
+            f"be analysed:"
+        )
+        for url in incomplete_urls["repourl"]:
+            logger.info(f"Excluding the repourl: {url}")
+
+    # Filter out incomplete URLs using the helper function
+    filtered_df = df[df["repourl"].apply(is_complete_url)]
+    return filtered_df
+
+
+def get_base_repo_url(url):
+    """
+    Extracts the base repository URL from a GitHub URL. It handles URLs ending
+     with '.git'.
+
+    Args:
+        url (str): The full GitHub URL.
+
+    Returns:
+        str: The base repository URL if valid, otherwise returns None.
+    """
+    # Return None immediately if the URL is None or empty
+    if not url:
+        return None
+
+    parsed_url = urlparse(url)
+    path = parsed_url.path.strip("/")
+
+    # Check if the path ends with '.git' and strip it off
+    if path.endswith(".git"):
+        path = path[:-4]  # Remove the last 4 characters, '.git'
+
+    parts = path.split("/")
+
+    if len(parts) >= 2:
+        # Format and return the URL with the owner and repository name
+        return f"{parsed_url.scheme}://{parsed_url.netloc}/{parts[0]}/{parts[1]}"
+    else:
+        return None
+
+
 if __name__ == "__main__":
     args = parse_args()
 
@@ -151,18 +234,31 @@ if __name__ == "__main__":
     df = pd.DataFrame(
         {"projectref": a_values, "nlnetpage": b_values, "repourl": c_values}
     )
+
+    # Save the dataframe as a CSV file
+    df.to_csv(output_dir / "original.csv", index=False)
     logger.info(
-        f'Dataframe "df" has been created from the input .tsv file in ' f"{output_dir}."
+        f'Dataframe "original.csv" is created from the ".tsv" '
+        f"file and saved in {output_dir} "
     )
+
+    logger.info("Creating separate DataFrames for each domain: \n ")
 
     # Applying preprocessing steps
     check_and_clean_data(df)
 
-    # Save the dataframe as a CSV file
-    df.to_csv(output_dir / "original.csv", index=False)
-    logger.info(f'Dataframe "df" saved in {output_dir} ')
+    # Filter out rows where the URL doesn't have a repository name (83 rows)
+    df = filter_out_incomplete_urls(df)
 
-    logger.info("Creating separate DataFrames for each domain: \n ")
+    # Clean and filter URLs
+    df["repourl"] = df["repourl"].apply(get_base_repo_url)
+    df = df[df["repourl"].notna()]  # Remove any rows with invalid URLs
+
+    # replace http with https
+    df["repourl"] = df["repourl"].str.replace(r"^http\b", "https", regex=True)
+
+    # Some of the URLs end with "/". I need to remove them.
+    df["repourl"] = df["repourl"].str.rstrip("/")
 
     # Extract the domain from the URL
     df["domain"] = df["repourl"].str.extract(r"https?://(www\.)?([^/]+)")[1]
