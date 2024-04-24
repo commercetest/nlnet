@@ -102,10 +102,9 @@ def check_and_clean_data(df):
     duplicates = df.duplicated().sum()
     if duplicates:
         logger.info(f"Number of duplicate rows: {duplicates}")
-        # I will keep the first occurrence of each duplicate row and remove the
-        # others:
+        # Keep the first occurrence of each duplicate row and remove the others
         df = df.drop_duplicates(keep="first")
-        logger.info("First occurrence of each duplicate row has been kept. ")
+        logger.info("First occurrence of each duplicate row has been kept.")
     else:
         logger.info("No duplicate rows found.")
 
@@ -141,6 +140,8 @@ def filter_out_incomplete_urls(df):
         # Check if the url is not a string
         if not isinstance(url, str):
             return False
+
+        # Exmaple url: https://github.com/owner/repo
         parts = url.rstrip("/").split("/")
         return len(parts) >= 5
 
