@@ -87,7 +87,7 @@ genbadge tests --output-file reports/junit/tests-badge.svg
    To use this script, you can specify all necessary command line arguments based on your requirements. For example:
 
    ```bash
-   python ginitial_data_preparation.py -input-file path/to/input_file.tsv --output-folder path/to/output_directory
+   python initial_data_preparation.py -input-file path/to/input_file.tsv --output-folder path/to/output_directory
 
 
 2. git_utils.py:
