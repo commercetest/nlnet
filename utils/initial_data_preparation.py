@@ -2,32 +2,32 @@
 This script processes a TSV file to create a DataFrame, from which it extracts
 domains and organises entries into separate DataFrames based on these domains.
 Each domain-specific DataFrame is saved as a CSV file if it contains more than
-10 records. This structured approach ensures that data is organised and
-easily accessible for further analysis. Additionally, the script enhances data
-quality by performing essential cleaning operations. It removes rows
-containing null values and eliminates duplicate entries by retaining only the
-first occurrence of each duplicate row.
+10 records. Additionally, the script performs data cleaning by removing rows
+with null values and duplicates, and ensures URLs are complete and well-formed
+before extracting the domain for analysis.
 
-The script is designed to be flexible, supporting command-line arguments that
-allow users to specify custom paths for the input TSV file and the output
-directory for the CSV files. This feature makes the script suitable for
-integration into automated workflows where input and output paths may vary.
+The script also includes functionality to replace HTTP with HTTPS in URLs,
+remove trailing slashes, and save the count of repositories for each domain
+into a text file, facilitating easy reference and further analysis. It's
+designed for flexibility, supporting command-line arguments that allow users to
+specify custom paths for the input TSV file and the output directory.
 
 Features:
 - Reads a TSV file specified by the user.
-- Performs data cleaning, including checking for null values and duplicates.
+- Performs data cleaning, including checking for null values,
+  duplicates, and URL completeness.
 - Extracts the domain from each URL in the 'repourl' column to determine where
   the code is hosted.
 - Separates the DataFrame into multiple DataFrames based on unique domains,
   facilitating domain-specific analyses.
-- Saves DataFrames that contain more than 10 entries into a structured directory
-  format, specifically catering to repositories hosted under distinct domains.
-- Outputs the count of repositories for each domain into a text file for
-  easy reference and further analysis.
+- Saves DataFrames with more than 10 entries to a structured directory format,
+  catering to repositories hosted under distinct domains.
+- Outputs the count of repositories for each domain into a text file for easy
+  reference and further analysis.
+- Converts HTTP to HTTPS in URLs and cleans them by removing trailing slashes.
 
 Command Line Arguments:
-- --input-file: Specifies the path to the input TSV file. Defaults to
-  'data/project_repos_from_jos_2024-feb-22.tsv'.
+- --input-file: Specifies the path to the input TSV file.
 - --output-folder: Specifies the directory where output CSV files and other
   results will be saved. Defaults to 'data/'.
 
@@ -37,7 +37,7 @@ To run the script with default paths:
 
 To specify custom paths:
     python initial_data_preparation.py --input-file path/to/input_file.tsv
-                             --output-folder path/to/output_directory
+                                       --output-folder path/to/output_directory
 """
 
 import pandas as pd
