@@ -16,6 +16,18 @@ The source file is in TSV (Tab Separated Values) format.
 ## Structure of this repo
 In general, much of the work will be identified in this repo's https://github.com/commercetest/nlnet/issues, and various more general notes will be recorded in Wiki pages at https://github.com/commercetest/nlnet/wiki
 
+
+After the `nlnet` repository has been cloned, two options are available for configuring the repository structure based on the intended use of the provided `.tsv` file:
+
+   - Default Repository Structure: The `.tsv` file should be placed directly in the `data` folder within the project repository. This setup allows the scripts to be run without         additional configuration.
+   - Custom Directory: Should a different structure be preferred, a directory can be created within the project repository to store the `.tsv `file. For example, a directory named    `nlnet_data` may be created. Once the `.tsv` file is placed in this new directory, the path must be specified when running the script. The `--input-file` flag should be used        followed by the relative path to the `.tsv file`, as shown below:
+     ```
+     --input-file nlnet_data/tsv_file_name.tsv
+     ```
+
+Informative docstrings detailing the functionality and the supported command-line arguments have been provided at the beginning of each script. Additionally, the `Scripts` section in the README.md offers further guidance on using these arguments.
+
+
 ## Runtime environment
 I'm using miniforge to manage the python environment including packages.
 
@@ -47,7 +59,59 @@ genbadge tests --output-file reports/junit/tests-badge.svg
 
 ## Scripts
 
-1. github_repo_request_local.py :
+1. initial_data_preparation.py:
+   
+   #### Overview
+
+   This script processes a TSV file to generate a DataFrame from which it extracts domains and organizes entries into separate DataFrames based on these domains. Each domain-         specific DataFrame is saved as a CSV file if it contains more than 10 records. This approach ensures that data is systematically organised and readily accessible for further       analysis.
+
+   The script also enhances data quality through essential cleaning operations. It removes rows containing null values and eliminates duplicate entries, retaining only the first      occurrence of each duplicate row.
+
+   Designed to be highly flexible, the script supports command-line arguments, allowing users to specify custom paths for the input TSV file and the output directories. This makes    the script ideal for integration into automated workflows where paths may vary.
+
+   #### Features
+   
+   - Dynamic Data Handling: Reads a TSV file specified by the user, and extracts critical information.
+   - Data Cleaning: Performs cleaning of the data by removing null values and duplicates.
+   - Domain Extraction: Identifies and extracts the domain from each URL in the 'repourl' column to ascertain the hosting platform.
+   - Data Organisation: Segregates the DataFrame into multiple DataFrames based on unique domains, facilitating focused analysis for each domain.
+   - Conditional Saving: Saves DataFrames that contain more than 10 entries into a structured directory format, tailored specifically for repositories hosted under distinct             domains.
+   - Output Reporting: Generates a count of repositories for each domain, saved into a text file for easy reference and further analysis.
+   - Command Line Arguments
+   - --input-file: Specifies the path to the input TSV file.
+   - --output-folder: Specifies the directory where output CSV files and other results will be saved.
+  
+
+   #### Usage
+   
+   To use this script, you can specify all necessary command line arguments based on your requirements. For example:
+
+   ```bash
+   python initial_data_preparation.py -input-file path/to/input_file.tsv --output-folder path/to/output_directory
+
+
+2. git_utils.py:
+
+   #### Overview
+
+   This utility module enhances Python scripts by providing robust functions for managing and interacting with Git repositories. It's designed to facilitate the identification of     the Git repository's root and to ensure that scripts operate relative to the correct directory, especially in environments where the execution context might vary.
+
+   #### Features
+
+   Git Repository Root Detection: Determines the root directory of the current Git repository using the git rev-parse --show-toplevel command. This is crucial for scripts that        need to operate relative to the repository root.
+   Context-Aware Path Management: Offers a method to reliably determine the appropriate base directory for file operations, whether inside a Git repository or not, thus enhancing     script portability and robustness.
+
+   #### Usage
+   The functions in this script has been imported in other scripts where nteracting with Git repository is reqired.
+
+   ```
+   from utils.git_utils import get_working_directory_or_git_root
+   work_dir = get_working_directory_or_git_root()
+   print(f"Working directory or Git root: {work_dir}")
+   ```
+
+   
+4. github_repo_request_local.py:
 
    #### Overview
    
@@ -81,11 +145,11 @@ genbadge tests --output-file reports/junit/tests-badge.svg
    To use this script, you can specify all necessary command line arguments based on your requirements. For example:
 
    ```bash
-   python 1. github_repo_request_local.py --input-file path/to/input.csv --output-file path/to/output.csv
+   python github_repo_request_local.py --input-file path/to/input.csv --output-file path/to/output.csv
 
 
 
-3. github_repo_requests.py
+5. github_repo_requests.py:
 
    #### Overview
 
