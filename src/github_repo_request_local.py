@@ -5,25 +5,23 @@ import pandas as pd
 from loguru import logger
 from utils.git_utils import get_working_directory_or_git_root
 from utils.export_to_rdf import dataframe_to_ttl
-from urllib.parse import urlparse
 import shutil
 
 """
 This script automates the process of cloning GitHub repositories listed in a
-CSV file, counts the number of test files in each repository, and saves both
-the count and the last commit hash back to the CSV. Additionally, it writes the
-repository URL followed by the names of all test files found within that
-repository to a text file, facilitating detailed record-keeping and auditing of
-test file existence across repositories. The script is designed to handle
-interruptions and errors more robustly by independently verifying the
-completion of each critical operation including cloning, commit hash retrieval,
-test file counting, and the writing of test file records. It saves progress
-incrementally and can resume where it left off, ensuring that data from previous
-runs is properly managed.
+CSV file, retrieves the last commit hash for each repository, and saves this
+information back to the CSV. It also counts the number of test files in each
+repository, excluding specific file extensions based on command-line arguments,
+and saves both the count and the list of test filenames to a text file. This
+facilitates detailed record-keeping and auditing of test file existence across
+repositories. The script is designed to handle interruptions and errors more
+robustly by independently verifying the completion of each critical operation
+including cloning, commit hash retrieval, test file counting, and the writing
+of test file records. It saves progress incrementally and can resume where it
+left off, ensuring that data from previous runs is properly managed.
 
 Enhancements include:
-- Ability to parse and correct GitHub URLs to ensure only repository roots are
-  targeted.
+
 - Exclusion of specific file extensions during the test file count to tailor
   the data collection.
 - Optional retention of cloned repositories post-processing, controlled via
@@ -31,19 +29,27 @@ Enhancements include:
 - Batch processing capabilities to manage large sets of data efficiently and
   save progress periodically.
 - Conversion of the final data collection to Turtle (TTL) format for RDF
-  compliant data storage.
-- Writing of repository URLs and associated test file names to a text file for
-  easy auditing and verification.
+  compliant data storage, with the ability to specify the output location.
+- Writing of repository URLs and associated test filenames to a text file for
+  easy auditing and verification. The location of this text file can be
+  specified via command-line arguments.
 
-Users can specify excluded file extensions and choose a custom directory for
-cloning repositories. The end of the script converts the result to Turtle format
-and saves the file, facilitating easy integration with semantic web technologies.
+Users can specify excluded file extensions, choose a custom directory for
+cloning repositories, and set paths for output files (both CSV and text formats).
+The script also allows specification of the output path for the TTL format file,
+facilitating easy integration with semantic web technologies.
 
 Command Line Arguments:
 - --exclude: Specify file extensions to exclude from test file counts.
 - --clone-dir: Set a custom directory for cloning the repositories.
 - --keep-clones: Option to retain cloned repositories after processing, which
   can be useful for subsequent manual reviews or further automated tasks.
+- --input-file: Path to the input CSV file.
+- --output-file: Path to the output CSV file that includes test file counts and
+  last commit hashes.
+- --test-file-list: Path to the text file for recording repository URLs and
+  test filenames.
+- --ttl-file: Path to save the Turtle (TTL) format file.
 """
 
 
@@ -86,38 +92,20 @@ def parse_args():
         default=str(Path("data/updated_local_github_df_test_count.csv")),
         help="Path to the output CSV file.",
     )
+    parser.add_argument(
+        "--ttl-file",
+        type=str,
+        default=str(Path("data/all_data.ttl")),
+        help="Path to save the Turtle (TTL) format file.",
+    )
+    parser.add_argument(
+        "--test-file-list",
+        type=str,
+        default=str(Path("data/test_files_list.txt")),
+        help="Path to the text file for writing repository URLs and test filenames.",
+    )
+
     return parser.parse_args()
-
-
-def get_base_repo_url(url):
-    """
-    Extracts the base repository URL from a GitHub URL. It handles URLs ending
-     with '.git'.
-
-    Args:
-        url (str): The full GitHub URL.
-
-    Returns:
-        str: The base repository URL if valid, otherwise returns None.
-    """
-    # Return None immediately if the URL is None or empty
-    if not url:
-        return None
-
-    parsed_url = urlparse(url)
-    path = parsed_url.path.strip("/")
-
-    # Check if the path ends with '.git' and strip it off
-    if path.endswith(".git"):
-        path = path[:-4]  # Remove the last 4 characters, '.git'
-
-    parts = path.split("/")
-
-    if len(parts) >= 2:
-        # Format and return the URL with the owner and repository name
-        return f"{parsed_url.scheme}://{parsed_url.netloc}/{parts[0]}/{parts[1]}"
-    else:
-        return None
 
 
 def list_test_files(directory, excluded_extensions):
@@ -166,57 +154,6 @@ def get_last_commit_hash(repo_dir: Path):
         return None  # Return None to indicate failure
 
 
-def filter_out_incomplete_urls(df):
-    """
-    Filters rows in a DataFrame based on the completeness of the 'repourl'
-    URLs. A URL is considered complete if it contains at least five parts,
-    including the protocol, empty segment (for '//'), domain, and at least
-    two path segments, e.g., 'https://github.com/owner/repo'. Raises
-    an error if the required column 'repourl' is missing.
-
-    Args:
-        df (pd.DataFrame): DataFrame containing URLs.
-
-    Returns:
-        pd.DataFrame: DataFrame with rows containing complete URLs.
-
-    Raises:
-        ValueError: If the 'repourl' column is missing from the DataFrame.
-    """
-    if "repourl" not in df.columns:
-        logger.critical(
-            "Critical: DataFrame columns are: {}".format(df.columns.tolist())
-        )
-        logger.critical(
-            "DataFrame does not contain 'repourl' column. Aborting operation."
-        )
-        raise ValueError("DataFrame must contain a 'repourl' column.")
-
-    # Helper function to determine if a URL is complete
-    def is_complete_url(url):
-        # Check if the url is not a string
-        if not isinstance(url, str):
-            return False
-        parts = url.rstrip("/").split("/")
-        return len(parts) >= 5
-
-    # Identify rows with incomplete URLs using the helper function
-    incomplete_urls = df[~df["repourl"].apply(is_complete_url)]
-
-    # Log the incomplete URLs
-    if not incomplete_urls.empty:
-        logger.warning(
-            f"{len(incomplete_urls)} incomplete GitHub URLs found and will not "
-            f"be analysed:"
-        )
-        for url in incomplete_urls["repourl"]:
-            logger.info(f"Excluding the repourl: {url}")
-
-    # Filter out incomplete URLs using the helper function
-    filtered_df = df[df["repourl"].apply(is_complete_url)]
-    return filtered_df
-
-
 if __name__ == "__main__":
     args = parse_args()
     input_file = args.input_file
@@ -227,10 +164,10 @@ if __name__ == "__main__":
     # Use get_working_directory_or_git_root to define paths relative to the
     # repository root
     repo_root = get_working_directory_or_git_root()
-    # updated_csv_path = repo_root / "data" / "updated_local_github_df_test_count1.csv"
+    logger.info(f"repo_root is: {repo_root}")
     updated_csv_path = repo_root / output_file
     logger.info(f"updated_csv_path is: {updated_csv_path}")
-    clone_dir_base = Path(args.clone_dir)
+    clone_dir_base = repo_root / Path(args.clone_dir)
 
     # Ensures the directory exists
     clone_dir_base.mkdir(parents=True, exist_ok=True)
@@ -247,21 +184,8 @@ if __name__ == "__main__":
         else:
             logger.error(f"CSV file not found at {csv_file_path}.")
 
-    # Filter out rows where the URL doesn't have a repository name (83 rows)
-    df = filter_out_incomplete_urls(df)
-
     if "last_commit_hash" not in df.columns:
         df["last_commit_hash"] = None  # Initialize the column with None
-
-    # replace http with https
-    df["repourl"] = df["repourl"].str.replace(r"^http\b", "https", regex=True)
-
-    # Some of the URLs end with "/". I need to remove them.
-    df["repourl"] = df["repourl"].str.rstrip("/")
-
-    # Clean and filter URLs
-    df["repourl"] = df["repourl"].apply(get_base_repo_url)
-    df = df[df["repourl"].notna()]  # Remove any rows with invalid URLs
 
     # Number of repositories to process before saving to CSV
     BATCH_SIZE = 10
@@ -269,9 +193,11 @@ if __name__ == "__main__":
     # Track the number of processed repositories in the current batch
     processed_count = 0
 
-    # Define the path for the text file where test file names and URLs will be
-    # saved
-    test_file_list_path = repo_root / "data" / "test_files_list.txt"
+    # Define the path for the text file where test filenames and URLs will be
+    # saved otherwise the default path will be used:
+    # repo_root / "data" / "test_files_list.txt"
+    test_file_list_path = repo_root / Path(args.test_file_list)
+    logger.info(f"test_file_list_path is: {test_file_list_path}")
 
     # Open the text file just before the loop begins
     with open(test_file_list_path, "a") as file:
@@ -281,13 +207,13 @@ if __name__ == "__main__":
             if row["testfilecountlocal"] != -1 and pd.notna(row["last_commit_hash"]):
                 continue
 
-            original_repo_url = row["repourl"]
-            repo_url = get_base_repo_url(original_repo_url)
+            repo_url = row["repourl"]
             if not repo_url or repo_url is None:
-                logger.info(f"Invalid repository URL: {original_repo_url}")
+                logger.info(f"Invalid repository URL: {repo_url}")
                 continue
             repo_name = Path(repo_url.split("/")[-1]).stem
             clone_dir = clone_dir_base / repo_name
+            logger.info(f"clone_dir is: {clone_dir}")
 
             # Clone only if directory doesn't exist
             if not clone_dir.exists():
@@ -310,7 +236,7 @@ if __name__ == "__main__":
 
                 except subprocess.CalledProcessError as e:
                     logger.error(
-                        f"Failed to clone the repo: {repo_name}." f" " f"Exception: {e}"
+                        f"Failed to clone the repo: {repo_name}.Exception: {e}"
                     )
                     df.at[index, "testfilecountlocal"] = -1
 
@@ -319,7 +245,8 @@ if __name__ == "__main__":
 
                     continue
 
-            # Always attempt to fetch the last commit hash if not already fetched
+            # Always attempt to fetch the last commit hash if not already
+            # fetched
             if pd.isna(row["last_commit_hash"]):
                 last_commit_hash = get_last_commit_hash(clone_dir)
                 df.at[index, "last_commit_hash"] = last_commit_hash
@@ -330,11 +257,12 @@ if __name__ == "__main__":
                 count = len(test_file_names)
                 df.at[index, "testfilecountlocal"] = count
 
-                # Write the repository URL and each test file name to the text file
-                file.write(f"Repository URL: {repo_url}\n")  # Write the repo URL
+                # Write the repository URL and each test filename to the text
+                # file
+                file.write(f"Repository URL: {repo_url}\n")
                 file.writelines(
                     f"{name}\n" for name in test_file_names
-                )  # Write each test file name
+                )  # Write each test filename
                 file.write("\n")  # Add a blank line for separation
                 logger.info(
                     f"Test file names for the repo `{repo_name}`"
@@ -372,8 +300,9 @@ if __name__ == "__main__":
 
     # Exporting the result to an RDF format
 
-    # Get the repository root and define the path to save the TTL file
-    path_to_save_ttl = repo_root / "data" / "all_data.ttl"
+    # Use the path from the arguments to save the TTL file or saving the file
+    # in the default location : "data/all_data.ttl"
+    path_to_save_ttl = repo_root / Path(args.ttl_file)
 
     # Convert DataFrame to Turtle format
     ttl_data = dataframe_to_ttl(df)
