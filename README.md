@@ -43,6 +43,9 @@ We'd like to learn by doing, this includes experimenting with various code quali
 ```
 pytest --junit-xml=reports/junit/junit.xml --html=reports/junit/report.html
 genbadge tests --output-file reports/junit/tests-badge.svg
+
+pytest --cov-report xml:reports/coverage/coverage.xml --cov .
+genbadge coverage --output-file reports/coverage/coverage-badge.svg
 ```
 
 ## Scripts
@@ -50,13 +53,13 @@ genbadge tests --output-file reports/junit/tests-badge.svg
 1. github_repo_request_local.py :
 
    #### Overview
-   
+
    This Python script automates the cloning and analysis of GitHub repositories. Designed for robustness, it handles interruptions by
    saving progress, allowing for resumption without data loss. It provides the flexibility to exclude specific file types and to set
    a custom directory for repository clones.
 
     #### Key Features
-   
+
      - **Cloning Automation**: Clone repositories from a list provided in a CSV file.
      - **Test File Counting**: Count the number of 'test' files within each repository, ignoring files with user-defined extensions.
      - **Progress Tracking**: Save and resume progress, ideal for long-running processes.
@@ -73,7 +76,7 @@ genbadge tests --output-file reports/junit/tests-badge.svg
    back into the CSV file.
 
    #### Key Features
-   
+
       -  **CSV File Processing**: Load and validate data from a CSV file, checking for null values and duplicates.
       -  **GitHub Interaction**: Interface with the GitHub API to perform searches within repositories and retrieve commit information.
       -  **Rate Limiting**: Respect GitHub API rate limits with built-in delay and retry logic.
