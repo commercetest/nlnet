@@ -141,7 +141,7 @@ def filter_out_incomplete_urls(df):
         if not isinstance(url, str):
             return False
 
-        # Exmaple url: https://github.com/owner/repo
+        # Example url: https://github.com/owner/repo
         parts = url.rstrip("/").split("/")
         return len(parts) >= 5
 

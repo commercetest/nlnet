@@ -6,6 +6,7 @@ from loguru import logger
 from utils.git_utils import get_working_directory_or_git_root
 from utils.export_to_rdf import dataframe_to_ttl
 import shutil
+import sys
 
 """
 This script automates the process of cloning GitHub repositories listed in a
@@ -83,7 +84,7 @@ def parse_args():
     parser.add_argument(
         "--input-file",
         type=str,
-        default=str(Path("data/original_github_df.csv")),
+        default=str(Path("data/source_code_hosting_platform_dfs/github.com.csv")),
         help="Path to the input CSV file.",
     )
     parser.add_argument(
@@ -182,7 +183,12 @@ if __name__ == "__main__":
             df = pd.read_csv(csv_file_path)
             df["testfilecountlocal"] = -1  # Initialise if first run
         else:
-            logger.error(f"CSV file not found at {csv_file_path}.")
+            logger.error(
+                f"The input file has not been found at {csv_file_path}. Exiting..."
+            )
+
+            # Exit with error code 1 indicating that an error occurred
+            sys.exit(1)
 
     if "last_commit_hash" not in df.columns:
         df["last_commit_hash"] = None  # Initialize the column with None
