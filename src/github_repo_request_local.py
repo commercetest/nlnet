@@ -83,7 +83,7 @@ def parse_args():
     parser.add_argument(
         "--input-file",
         type=str,
-        default=str(Path("data/original_github_df.csv")),
+        default=str(Path("data/source_code_hosting_platform_dfs/github.com.csv")),
         help="Path to the input CSV file.",
     )
     parser.add_argument(
