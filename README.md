@@ -2,6 +2,7 @@
 Analysis of the opensource codebases of NLnet sponsored projects.
 
 [![Tests Status](./reports/junit/tests-badge.svg?dummy=8484744)](./reports/junit/report.html)
+[![Tests Coverage](./reports/coverage/coverage-badge.svg?dummy=8484744)](./reports/junit/report.html)
 
 ## Objectives
 The main objective is to be able to identify characteristics of existing and current testing practices recorded in the opensource repos of projects that have received funding from NLnet foundation. These details may then enable us to identify ways to help distill approaches that may help several of these projects in tandem (concurrently).
@@ -55,12 +56,15 @@ We'd like to learn by doing, this includes experimenting with various code quali
 ```
 pytest --junit-xml=reports/junit/junit.xml --html=reports/junit/report.html
 genbadge tests --output-file reports/junit/tests-badge.svg
+
+pytest --cov-report xml:reports/coverage/coverage.xml --cov .
+genbadge coverage --output-file reports/coverage/coverage-badge.svg
 ```
 
 ## Scripts
 
 1. initial_data_preparation.py:
-   
+
    #### Overview
 
    This script processes a TSV file to generate a DataFrame from which it extracts domains and organizes entries into separate DataFrames based on these domains. Each domain-         specific DataFrame is saved as a CSV file if it contains more than 10 records. This approach ensures that data is systematically organised and readily accessible for further       analysis.
@@ -70,7 +74,7 @@ genbadge tests --output-file reports/junit/tests-badge.svg
    Designed to be highly flexible, the script supports command-line arguments, allowing users to specify custom paths for the input TSV file and the output directories. This makes    the script ideal for integration into automated workflows where paths may vary.
 
    #### Features
-   
+
    - Dynamic Data Handling: Reads a TSV file specified by the user, and extracts critical information.
    - Data Cleaning: Performs cleaning of the data by removing null values and duplicates.
    - Domain Extraction: Identifies and extracts the domain from each URL in the 'repourl' column to ascertain the hosting platform.
@@ -80,10 +84,10 @@ genbadge tests --output-file reports/junit/tests-badge.svg
    - Command Line Arguments
    - --input-file: Specifies the path to the input TSV file.
    - --output-folder: Specifies the directory where output CSV files and other results will be saved.
-  
+
 
    #### Usage
-   
+
    To use this script, you can specify all necessary command line arguments based on your requirements. For example:
 
    ```bash
@@ -110,17 +114,17 @@ genbadge tests --output-file reports/junit/tests-badge.svg
    print(f"Working directory or Git root: {work_dir}")
    ```
 
-   
+
 4. github_repo_request_local.py:
 
    #### Overview
-   
+
    This script automates the process of cloning GitHub repositories listed in a CSV file, counts the number of test files in each repository, and saves both the count and the last    commit hash back to the CSV. Additionally, it writes the repository URL followed by the names of all test files found within that repository to a specified text file,              facilitating detailed record-keeping and auditing of test file existence across repositories. The script is designed to handle interruptions and errors more robustly by            independently verifying the completion of each critical operation including cloning, commit hash retrieval, test file counting, and the writing of test file records. It saves      progress incrementally and can resume where it left off, ensuring that data from previous runs is properly managed.
 
    #### Enhancements
 
    This script includes several enhancements to improve its functionality:
-   
+
    - **GitHub URL Parsing:** Ensures only repository roots are targeted by parsing and correcting GitHub URLs.
    - **File Extension Exclusion:** Allows exclusion of specific file extensions during the test file count to tailor the data collection.
    - **Retention of Clones:** Optional retention of cloned repositories post-processing, which can be useful for subsequent manual reviews or further automated tasks.
@@ -131,7 +135,7 @@ genbadge tests --output-file reports/junit/tests-badge.svg
    #### Configuration
 
    Users can customize their experience with the script through several command-line arguments:
-   
+
    - `--exclude`: Specify file extensions to exclude from test file counts.
    - `--clone-dir`: Set a custom directory for cloning the repositories.
    - `--keep-clones`: Option to retain cloned repositories after processing.
@@ -141,13 +145,10 @@ genbadge tests --output-file reports/junit/tests-badge.svg
    - `--ttl-file`: Path to save the Turtle (TTL) format file.
 
    #### Usage
-   
+
    To use this script, you can specify all necessary command line arguments based on your requirements. For example:
 
    ```bash
-   python github_repo_request_local.py --input-file path/to/input.csv --output-file path/to/output.csv
-
-
 
 5. github_repo_requests.py:
 
@@ -158,7 +159,7 @@ genbadge tests --output-file reports/junit/tests-badge.svg
    back into the CSV file.
 
    #### Key Features
-   
+
       -  **CSV File Processing**: Load and validate data from a CSV file, checking for null values and duplicates.
       -  **GitHub Interaction**: Interface with the GitHub API to perform searches within repositories and retrieve commit information.
       -  **Rate Limiting**: Respect GitHub API rate limits with built-in delay and retry logic.
