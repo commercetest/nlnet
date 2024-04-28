@@ -304,6 +304,8 @@ if __name__ == "__main__":
         f"Count of repositories for each domain has been saved to : " f"{f.name}"
     )
 
+    other_domains_df = pd.DataFrame(columns=df.columns)
+
     for domain, domain_df in dfs_by_domain.items():
         if len(domain_df) > 10:
             domain_df.to_csv(
@@ -314,3 +316,18 @@ if __name__ == "__main__":
                 f"Saved {domain} domain DataFrame with "
                 f"{len(domain_df)} entries to {data_folder}"
             )
+
+        # Append DataFrames with less than 10 repositories to the
+        # other_domains_df
+        else:
+            other_domains_df = pd.concat(
+                [other_domains_df, domain_df], ignore_index=True
+            )
+
+    # Save the DataFrame containing domains with less than 10 repositories
+    if not other_domains_df.empty:
+        other_domains_df.to_csv(data_folder / "other_domains.csv", index=False)
+        logger.info(
+            f"Saved DataFrame with domains having less than 10 repositories to: "
+            f"{data_folder / 'other_domains.csv'}"
+        )
