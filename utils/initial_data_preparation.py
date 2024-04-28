@@ -47,6 +47,7 @@ from pathlib import Path
 from loguru import logger
 from utils.git_utils import get_working_directory_or_git_root
 import os
+import json
 from urllib.parse import urlparse
 
 
@@ -74,39 +75,65 @@ def parse_args():
     return parser.parse_args()
 
 
-def check_and_clean_data(df):
+def remove_duplicates(df):
     """
-    Processes the provided DataFrame by removing rows containing null values and
-    duplicate rows, updating the DataFrame in place.
+    Removes duplicate rows from the DataFrame and logs the result.
 
+    Parameters:
+        df (pd.DataFrame): The DataFrame from which to remove duplicates.
+
+    Returns:
+        tuple: A tuple containing the deduplicated DataFrame and the count of
+         removed rows.
     """
-    # Checking for null values
-    null_counts = df.isnull().sum()
-    if np.any(null_counts):
-        logger.info("Null values found:")
-        logger.info(null_counts[null_counts > 0])
-
-        # Count rows before dropping
-        initial_count = len(df)
-
-        # Drop rows with any null values in place
-        df.dropna(inplace=True)
-
-        # Log how many rows were dropped
-        rows_dropped = initial_count - len(df)
-        logger.info(f"Dropped {rows_dropped} rows containing null values.")
-    else:
-        logger.info("No null values found.")
-
-    # Checking for duplicates
+    logger.info("Starting to remove duplicate rows.")
+    initial_count = len(df)
     duplicates = df.duplicated().sum()
+
     if duplicates:
         logger.info(f"Number of duplicate rows: {duplicates}")
         # Keep the first occurrence of each duplicate row and remove the others
-        df = df.drop_duplicates(keep="first")
-        logger.info("First occurrence of each duplicate row has been kept.")
+        deduped_df = df.drop_duplicates(keep="first")
+        duplicates_removed = initial_count - len(deduped_df)
+        logger.info(
+            f"First occurrence of each duplicate row has been kept. "
+            f"Dropped {duplicates_removed} duplicate rows."
+        )
     else:
         logger.info("No duplicate rows found.")
+        deduped_df = df.copy()
+        duplicates_removed = 0  # No duplicates found, so no rows removed
+
+    return deduped_df, duplicates_removed
+
+
+def remove_null_values(df):
+    """
+    Removes rows with null values from the DataFrame and logs the result.
+
+    Parameters:
+        df (pd.DataFrame): The DataFrame from which to remove nulls.
+
+    Returns:
+        tuple: A tuple containing the non-null DataFrame and the count of
+        removed rows.
+    """
+    initial_count = len(df)
+    null_counts = df.isnull().sum()
+
+    if np.any(null_counts):
+        logger.info("Null values found:")
+        logger.info(null_counts[null_counts > 0])
+        # Drop rows with any null values
+        non_null_df = df.dropna()
+        nulls_removed = initial_count - len(non_null_df)
+        logger.info(f"Dropped {nulls_removed} rows containing null values.")
+    else:
+        logger.info("No null values found.")
+        non_null_df = df.copy()
+        nulls_removed = 0
+
+    return non_null_df, nulls_removed
 
 
 def filter_out_incomplete_urls(df):
@@ -193,6 +220,13 @@ def get_base_repo_url(url):
         return None
 
 
+# Function to save configuration data to a JSON file. This file will be used
+# when creating a sankey graph.
+def save_config_to_json(config_data, file_path):
+    with open(file_path, "w") as f:
+        json.dump(config_data, f, indent=4)  # Use indent for pretty printing
+
+
 if __name__ == "__main__":
     args = parse_args()
 
@@ -245,11 +279,23 @@ if __name__ == "__main__":
 
     logger.info("Creating separate DataFrames for each domain: \n ")
 
-    # Applying preprocessing steps
-    check_and_clean_data(df)
+    # Apply deduplication and null removal steps
+    df_deduped, duplicates_removed = remove_duplicates(df)
+    # Save the intermediate results to CSV files
+    deduped_csv_path = output_dir / "original_df_deduped.csv"
+    df_deduped.to_csv(deduped_csv_path, index=False)
+    logger.info(f"Deduplicated original dataFrame saved as: {deduped_csv_path}")
 
-    # Filter out rows where the URL doesn't have a repository name (83 rows)
-    df = filter_out_incomplete_urls(df)
+    dedupped_df_non_null_csv_path = output_dir / "dedupped_df_non_null.csv"
+    dedupped_df_non_null, nulls_removed = remove_null_values(df_deduped)
+    dedupped_df_non_null.to_csv(dedupped_df_non_null_csv_path, index=False)
+    logger.info(
+        f"None_null deduplicated original dataFrame saved as:"
+        f" {dedupped_df_non_null_csv_path}"
+    )
+
+    # Filter out rows where the URL doesn't have a repository name
+    df = filter_out_incomplete_urls(dedupped_df_non_null)
 
     # Clean and filter URLs
     df["repourl"] = df["repourl"].apply(get_base_repo_url)
@@ -331,3 +377,23 @@ if __name__ == "__main__":
             f"Saved DataFrame with domains having less than 10 repositories to: "
             f"{data_folder / 'other_domains.csv'}"
         )
+
+    # Dictionary to hold configuration and counts
+    config_data = {
+        "paths": {
+            "input_file": str(df_path),
+            "deduplicated_output": str(output_dir / "original_df_deduped.csv"),
+            "non_null_output": str(output_dir / "dedupped_df_non_null.csv"),
+            "domain_specific_output_dir": str(data_folder),
+        },
+        "counts": {
+            "duplicates_removed": duplicates_removed,
+            "nulls_removed": nulls_removed,
+        },
+    }
+
+# Saving the configuration JSON file:
+save_config_to_json(config_data, output_dir / "data_processing_config.json")
+logger.info(
+    f"Configuration and counts saved to {output_dir / 'data_processing_config.json'}"
+)

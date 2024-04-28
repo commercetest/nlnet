@@ -1,10 +1,13 @@
-import plotly.graph_objects as go
-import pandas as pd
-from loguru import logger
-from utils.git_utils import get_working_directory_or_git_root
-from utils.initial_data_preparation import filter_out_incomplete_urls, get_base_repo_url
 import os
 from collections import defaultdict
+
+import pandas as pd
+from loguru import logger
+import plotly.graph_objects as go
+
+from utils.git_utils import get_working_directory_or_git_root
+from utils.initial_data_preparation import filter_out_incomplete_urls, get_base_repo_url
+
 
 # Setting up the working directory and logger
 working_directory = get_working_directory_or_git_root()
