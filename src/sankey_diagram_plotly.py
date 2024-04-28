@@ -2,25 +2,43 @@ import os
 from collections import defaultdict
 
 import pandas as pd
+import json
 from loguru import logger
 import plotly.graph_objects as go
 
 from utils.git_utils import get_working_directory_or_git_root
-from utils.initial_data_preparation import filter_out_incomplete_urls, get_base_repo_url
+from utils.initial_data_preparation import (
+    filter_out_incomplete_urls,
+    get_base_repo_url,
+    remove_duplicates,
+)
+
+
+# Function to load configuration data from a JSON file
+def load_config_from_json(file_path):
+    with open(file_path, "r") as f:
+        return json.load(f)
 
 
 # Setting up the working directory and logger
 working_directory = get_working_directory_or_git_root()
 logger.info(f"Working directory is: {working_directory}")
 
+# Load the configuration
+config = load_config_from_json(
+    working_directory / "data" / "data_processing_config.json"
+)
+
 # Reading the original data
-original_df = pd.read_csv(working_directory / "data/original.csv")
+original_df = pd.read_csv(working_directory / "data" / "original.csv")
 initial_row_count = original_df.shape[0]
 
 # Calculating duplicates and creating a filtered dataframe
-num_duplicates = original_df.duplicated().sum()
-unique_original_df = original_df.drop_duplicates(keep="first")
-after_duplicates_count = unique_original_df.shape[0]
+
+# Use the loaded configuration in your Sankey diagram script
+unique_original_df, num_duplicates = remove_duplicates(original_df)
+# num_duplicates = config['counts']['duplicates_removed']
+after_duplicates_count = unique_original_df.shape[0] - num_duplicates
 
 # Simulate filtering out incomplete URLs
 # getting the df with complete urls
@@ -59,23 +77,35 @@ failed_clones = expected_to_clone_count - successful_clones
 
 # Nodes for Sankey Diagram
 node_labels = [
+    # 0
     "Original Data",
+    # 1
+    "Duplicate Rows",
+    # 2
     "After Removing Duplicates",
+    # 3
+    "Incomplete URLs"
+    # 4
     "After Removing Incomplete URLs",
+    # 5
+    "Null values"
+    # 6
     "After Removing Null Values",
-    "Expected to Clone",
+    # 7
     "Successfully Cloned",
+    # 8
     "Failed to Clone",
 ]
-
-
 # Links for Sankey Diagram
-source_indices = [0, 1, 2, 3, 4, 4]
-target_indices = [1, 2, 3, 4, 5, 6]
+source_indices = [0, 0, 2, 2, 4, 4, 6, 6]
+target_indices = [1, 2, 3, 4, 5, 6, 7, 8]
 
 values = [
+    num_duplicates,
     after_duplicates_count,
+    num_incomplete_urls,
     after_incomplete_urls_count,
+    rows_with_nulls,
     rows_after_null_removal,
     successful_clones,
     failed_clones,
@@ -158,7 +188,7 @@ for i, (source, target, value) in enumerate(
 fig.update_layout(
     title_text="Data Flow: From Original Data to Cloned Repositories",
     font_size=10,
-    annotations=annotations,
+    # annotations=annotations,
 )
 
 # Saving the diagram
