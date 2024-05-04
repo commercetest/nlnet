@@ -47,7 +47,6 @@ from pathlib import Path
 from loguru import logger
 from utils.git_utils import get_working_directory_or_git_root
 import os
-import json
 from urllib.parse import urlparse
 
 
@@ -220,13 +219,6 @@ def get_base_repo_url(url):
         return None
 
 
-# Function to save configuration data to a JSON file. This file will be used
-# when creating a sankey graph.
-def save_config_to_json(config_data, file_path):
-    with open(file_path, "w") as f:
-        json.dump(config_data, f, indent=4)  # Use indent for pretty printing
-
-
 if __name__ == "__main__":
     args = parse_args()
 
@@ -278,24 +270,6 @@ if __name__ == "__main__":
     )
 
     logger.info("Creating separate DataFrames for each domain: \n ")
-
-    # Apply deduplication and null removal steps
-    df_deduped, duplicates_removed = remove_duplicates(df)
-    # Save the intermediate results to CSV files
-    deduped_csv_path = output_dir / "original_df_deduped.csv"
-    df_deduped.to_csv(deduped_csv_path, index=False)
-    logger.info(f"Deduplicated original dataFrame saved as: {deduped_csv_path}")
-
-    dedupped_df_non_null_csv_path = output_dir / "dedupped_df_non_null.csv"
-    dedupped_df_non_null, nulls_removed = remove_null_values(df_deduped)
-    dedupped_df_non_null.to_csv(dedupped_df_non_null_csv_path, index=False)
-    logger.info(
-        f"None_null deduplicated original dataFrame saved as:"
-        f" {dedupped_df_non_null_csv_path}"
-    )
-
-    # Filter out rows where the URL doesn't have a repository name
-    df = filter_out_incomplete_urls(dedupped_df_non_null)
 
     # Clean and filter URLs
     df["repourl"] = df["repourl"].apply(get_base_repo_url)
@@ -377,23 +351,3 @@ if __name__ == "__main__":
             f"Saved DataFrame with domains having less than 10 repositories to: "
             f"{data_folder / 'other_domains.csv'}"
         )
-
-    # Dictionary to hold configuration and counts
-    config_data = {
-        "paths": {
-            "input_file": str(df_path),
-            "deduplicated_output": str(output_dir / "original_df_deduped.csv"),
-            "non_null_output": str(output_dir / "dedupped_df_non_null.csv"),
-            "domain_specific_output_dir": str(data_folder),
-        },
-        "counts": {
-            "duplicates_removed": duplicates_removed,
-            "nulls_removed": nulls_removed,
-        },
-    }
-
-# Saving the configuration JSON file:
-save_config_to_json(config_data, output_dir / "data_processing_config.json")
-logger.info(
-    f"Configuration and counts saved to {output_dir / 'data_processing_config.json'}"
-)
