@@ -1,115 +1,143 @@
-import os
-from collections import defaultdict
+"""
+Script for processing domain-specific data and generating a Sankey diagram of
+the analysis.
+
+This script reads an original data file, processes domain-specific data, and
+visualises the analysis results using a Sankey diagram. The processing involves
+the following steps:
+1. Removing duplicates from domain-specific data.
+2. Filtering out entries with incomplete URLs.
+3. Dropping rows with null values.
+
+The script sets up the working directory and logger, reads the original data
+file, and filters the data to include only domains with more than four
+occurrences. It then calculates various metrics for each domain, including the
+ number of duplicates, incomplete URLs, and null values.
+
+Based on the processed data, the script constructs a Sankey diagram to
+visualise the flow of data analysis, including transitions from the original
+data to domain-specific data, and from domains to outcome nodes
+representing duplicates, entries with incomplete URLs, and rows with null values.
+
+The generated Sankey diagram is saved as an HTML file in the
+'reports/graphs/sankey-diagram-of-analysis' directory.
+"""
 
 import pandas as pd
-import json
-from loguru import logger
 import plotly.graph_objects as go
+from loguru import logger
 
 from utils.git_utils import get_working_directory_or_git_root
 from utils.initial_data_preparation import (
     filter_out_incomplete_urls,
-    get_base_repo_url,
     remove_duplicates,
 )
 
 
-# Function to load configuration data from a JSON file
-def load_config_from_json(file_path):
-    with open(file_path, "r") as f:
-        return json.load(f)
+def process_domain_df(domain_df):
+    # Removing duplicates
+    unique_df, num_duplicates = remove_duplicates(domain_df)
+
+    # Filtering out incomplete URLs
+    complete_df = filter_out_incomplete_urls(unique_df)
+    num_incomplete_urls = len(unique_df) - len(complete_df)
+
+    # Dropping null values
+    no_null_df = complete_df.dropna()
+    num_null_values = len(complete_df) - len(no_null_df)
+
+    return {
+        "duplicates_count": num_duplicates,
+        "incomplete_urls_count": num_incomplete_urls,
+        "null_values_count": num_null_values,
+    }
 
 
 # Setting up the working directory and logger
 working_directory = get_working_directory_or_git_root()
 logger.info(f"Working directory is: {working_directory}")
 
-# Load the configuration
-config = load_config_from_json(
-    working_directory / "data" / "data_processing_config.json"
-)
 
 # Reading the original data
 original_df = pd.read_csv(working_directory / "data" / "original.csv")
 initial_row_count = original_df.shape[0]
 
-# Calculating duplicates and creating a filtered dataframe
+original_df["repodomain"] = original_df["repourl"].str.extract(
+    r"https?://(www\.)?([^/]+)"
+)[1]
+repodomain_counts = original_df["repodomain"].value_counts()
 
-# Use the loaded configuration in your Sankey diagram script
-unique_original_df, num_duplicates = remove_duplicates(original_df)
-# num_duplicates = config['counts']['duplicates_removed']
-after_duplicates_count = unique_original_df.shape[0] - num_duplicates
-
-# Simulate filtering out incomplete URLs
-# getting the df with complete urls
-after_incomplete_urls_df = filter_out_incomplete_urls(unique_original_df)
-num_incomplete_urls = unique_original_df.shape[0] - after_incomplete_urls_df.shape[0]
-after_incomplete_urls_count = after_duplicates_count - num_incomplete_urls
+domains_with_more_than_four = repodomain_counts[repodomain_counts > 6].index
 
 
-# Clean and filter URLs
-after_incomplete_urls_df["repourl"] = after_incomplete_urls_df["repourl"].apply(
-    get_base_repo_url
-)
-
-rows_with_nulls = len(after_incomplete_urls_df.isnull().sum())
-dropped_null_df = after_incomplete_urls_df.dropna()
-rows_after_null_removal = after_incomplete_urls_count - rows_with_nulls
-
-dropped_null_df2 = after_incomplete_urls_df[
-    after_incomplete_urls_df["repourl"].notna()
-]  # Remove any rows with invalid URLs
-
-cloned_repos_path = working_directory / "data" / "cloned_repos"
-
-# Counting the number of directories in cloned_repos_path
-actual_cloned_count = len(
-    [
-        name
-        for name in os.listdir(cloned_repos_path)
-        if os.path.isdir(os.path.join(cloned_repos_path, name))
-    ]
-)
-
-expected_to_clone_count = rows_after_null_removal
-successful_clones = actual_cloned_count
-failed_clones = expected_to_clone_count - successful_clones
+# Filter the original DataFrame
+filtered_original_df = original_df[
+    original_df["repodomain"].isin(domains_with_more_than_four)
+]
+repodomain_counts = filtered_original_df["repodomain"].value_counts()
 
 # Nodes for Sankey Diagram
 node_labels = [
     # 0
     "Original Data",
-    # 1
-    "Duplicate Rows",
-    # 2
-    "After Removing Duplicates",
-    # 3
-    "Incomplete URLs"
+    # 1-3
+    *repodomain_counts.index.tolist(),
     # 4
-    "After Removing Incomplete URLs",
+    "Duplicates",
     # 5
-    "Null values"
+    "No Repo Name",
     # 6
-    "After Removing Null Values",
-    # 7
-    "Successfully Cloned",
-    # 8
-    "Failed to Clone",
+    "Null values",
 ]
-# Links for Sankey Diagram
-source_indices = [0, 0, 2, 2, 4, 4, 6, 6]
-target_indices = [1, 2, 3, 4, 5, 6, 7, 8]
 
-values = [
-    num_duplicates,
-    after_duplicates_count,
-    num_incomplete_urls,
-    after_incomplete_urls_count,
-    rows_with_nulls,
-    rows_after_null_removal,
-    successful_clones,
-    failed_clones,
-]
+# Links for Sankey Diagram
+# Initialise the indices for sources and targets
+source_indices = []
+target_indices = []
+values = []
+
+# Original Data to domains
+for i, domain in enumerate(repodomain_counts.index, start=1):
+    source_indices.append(0)
+    target_indices.append(i)
+    values.append(repodomain_counts[domain])
+
+
+# Calculate domain results and aggregate to outcome nodes
+domain_results = {}
+duplicates_total = 0
+incomplete_urls_total = 0
+null_values_total = 0
+
+for domain in repodomain_counts.index:
+    domain_df = filtered_original_df[filtered_original_df["repodomain"] == domain]
+    result = process_domain_df(domain_df)
+    domain_results[domain] = result
+    duplicates_total += result["duplicates_count"]
+    incomplete_urls_total += result["incomplete_urls_count"]
+    null_values_total += result["null_values_count"]
+
+# Adding links from each domain to the outcome nodes
+duplicate_index = len(repodomain_counts) + 1
+incomplete_url_index = duplicate_index + 1
+null_value_index = incomplete_url_index + 1
+
+for i, domain in enumerate(repodomain_counts.index, start=1):
+    # Link to Duplicates
+    source_indices.append(i)
+    target_indices.append(duplicate_index)
+    values.append(domain_results[domain]["duplicates_count"])
+
+    # Link to Incomplete URLs
+    source_indices.append(i)
+    target_indices.append(incomplete_url_index)
+    values.append(domain_results[domain]["incomplete_urls_count"])
+
+    # Link to Null Values
+    source_indices.append(i)
+    target_indices.append(null_value_index)
+    values.append(domain_results[domain]["null_values_count"])
+
 
 # Creating the Sankey Diagram
 fig = go.Figure(
@@ -132,66 +160,7 @@ fig = go.Figure(
     ]
 )
 
-# Adding annotations
 
-# Define vertical spacing
-y_step = 0.05  # Value to increase vertical spacing
-max_y_position = 0.95  # Starting from the top (near 1), and will decrement
-min_y_position = 0.05  # The lowest point for an annotation to be
-
-annotations = []
-current_y_position = max_y_position
-
-# Initialise with the initial row count because nothing is excluded at the
-# first step
-excluded_at_steps = [0]
-
-# Calculate the excluded rows for subsequent steps
-for i in range(1, len(values)):
-    # The number of excluded rows is the number at the previous step minus the
-    # current step
-    excluded_at_steps.append(values[i - 1] - values[i])
-
-
-annotations = []
-# Adjust annotations to space out horizontally along the width of the Sankey
-# diagram
-# # Default horizontal offset for annotations
-x_offsets = defaultdict(lambda: 0.05)
-
-for i, (source, target, value) in enumerate(
-    zip(source_indices, target_indices, excluded_at_steps)
-):
-    # If there's a value to annotate, create an annotation dict
-    if value > 0:
-        # Use the offset for the current source node
-        offset = x_offsets[source]
-        # Calculate x position as a fraction, adjusted by offset
-        x_pos = (
-            (source + offset) / (len(node_labels) - 1)
-            + (target - offset) / (len(node_labels) - 1)
-        ) / 2
-
-        annotations.append(
-            dict(
-                x=x_pos,  # The x position is normalised between 0 and 1
-                y=0.7,  # Keep y in the middle of the plot height
-                text=f"{value} rows excluded",  # Annotation text
-                showarrow=False,
-                font=dict(size=10, color="black"),
-                align="center",
-                xref="paper",  # Position is relative to the entire plot width
-                yref="paper",  # Position is relative to the entire plot height
-            )
-        )
-# Displaying the Sankey Diagram
-fig.update_layout(
-    title_text="Data Flow: From Original Data to Cloned Repositories",
-    font_size=10,
-    # annotations=annotations,
-)
-
-# Saving the diagram
 fig.write_html(
     working_directory
     / "reports"
