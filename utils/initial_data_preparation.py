@@ -190,14 +190,15 @@ def filter_out_incomplete_urls(df):
 
 def get_base_repo_url(url):
     """
-    Extracts the base repository URL from a GitHub URL. It handles URLs ending
-     with '.git'.
+    Extracts the base repository URL from various hosting platforms.
+    Handles URLs ending with '.git', supports nested groups in GitLab,
+    and adapts to different platform URL structures.
 
     Args:
-        url (str): The full GitHub URL.
+      url (str): The full URL to a Git repository.
 
     Returns:
-        str: The base repository URL if valid, otherwise returns None.
+      str: The base repository URL if valid, otherwise returns None.
     """
     # Return None immediately if the URL is None or empty
     if not url:
@@ -206,17 +207,40 @@ def get_base_repo_url(url):
     parsed_url = urlparse(url)
     path = parsed_url.path.strip("/")
 
-    # Check if the path ends with '.git' and strip it off
-    if path.endswith(".git"):
+    # Host-specific criteria for handling '.git'
+    hosts_with_mandatory_git_suffix = [
+        "git.savannah.gnu.org",
+        "git.torproject.org",
+        "git.taler.net",
+    ]
+    should_strip_git = not any(
+        host in parsed_url.netloc for host in hosts_with_mandatory_git_suffix
+    )
+
+    if path.endswith(".git") and should_strip_git:
         path = path[:-4]  # Remove the last 4 characters, '.git'
 
     parts = path.split("/")
+    print(f"parts: {parts}")
 
-    if len(parts) >= 2:
-        # Format and return the URL with the owner and repository name
-        return f"{parsed_url.scheme}://{parsed_url.netloc}/{parts[0]}/{parts[1]}"
-    else:
+    # Check if the URL lacks specific repository details(owner/reponame)
+    if len(parts) < 2:
         return None
+        # Define platforms that use the complete path without slicing
+    direct_path_platforms = {
+        "gitlab.com",
+        "gitlab.torproject.org",
+        "codeberg.org",
+        "framagit.org",
+    }
+
+    # Determine the base path based on the hosting platform
+    if any(host in parsed_url.netloc for host in direct_path_platforms):
+        base_path = "/".join(parts)
+    else:
+        base_path = "/".join(parts[:2])  # Default handling for GitHub-like URLs
+
+    return f"{parsed_url.scheme}://{parsed_url.netloc}/{base_path}"
 
 
 if __name__ == "__main__":
@@ -327,7 +351,7 @@ if __name__ == "__main__":
     other_domains_df = pd.DataFrame(columns=df.columns)
 
     for domain, domain_df in dfs_by_domain.items():
-        if len(domain_df) > 10:
+        if len(domain_df) >= 10:
             domain_df.to_csv(
                 data_folder / f"{domain.replace('/', '_').replace(':', '_')}.csv",
                 index=False,
