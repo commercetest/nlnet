@@ -35,6 +35,24 @@ def test_get_base_repo_url():
         == "https://redmine.replicant.us/projects/replicant"
     )
 
+    # Test for Codeberg and Framagit profiles and repositories
+    assert get_base_repo_url("https://codeberg.org/interpeer") is None
+    assert (
+        get_base_repo_url("https://codeberg.org/forgejo/forgejo")
+        == "https://codeberg.org/forgejo/forgejo"
+    )
+    assert get_base_repo_url("https://framagit.org/incommon.cc") is None
+    assert (
+        get_base_repo_url("https://framagit.org/framasoft/CHAP/mobilizon")
+        == "https://framagit.org/framasoft/CHAP/mobilizon"
+    )
+
+    # Test for GitLab with nested groups
+    assert (
+        get_base_repo_url("https://gitlab.com/technostructures/kazarma/kazarma")
+        == "https://gitlab.com/technostructures/kazarma/kazarma"
+    )
+
     # Checking the `repourls` which ends with `.git`
     assert (
         get_base_repo_url("https://github.com/stalwartlabs/mail-server.git")
@@ -45,6 +63,17 @@ def test_get_base_repo_url():
         get_base_repo_url("https://github.com/tdf/odftoolkit.git")
         == "https://github.com/tdf/odftoolkit"
     )
+
+    # Test URLs from hosts that require '.git' in the path
+    assert (
+        get_base_repo_url("https://git.savannah.gnu.org/git/mes.git")
+        == "https://git.savannah.gnu.org/git/mes.git"
+    )
+    assert (
+        get_base_repo_url("https://git.taler.net/git/libtalerutil.git")
+        == "https://git.taler.net/git/libtalerutil.git"
+    )
+    assert get_base_repo_url("https://git.taler.net/taler-ios.git") is None
 
     # Invalid URL formats
     assert get_base_repo_url("just-a-string") is None
