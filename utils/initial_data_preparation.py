@@ -74,39 +74,65 @@ def parse_args():
     return parser.parse_args()
 
 
-def check_and_clean_data(df):
+def remove_duplicates(df):
     """
-    Processes the provided DataFrame by removing rows containing null values and
-    duplicate rows, updating the DataFrame in place.
+    Removes duplicate rows from the DataFrame and logs the result.
 
+    Parameters:
+        df (pd.DataFrame): The DataFrame from which to remove duplicates.
+
+    Returns:
+        tuple: A tuple containing the deduplicated DataFrame and the count of
+         removed rows.
     """
-    # Checking for null values
-    null_counts = df.isnull().sum()
-    if np.any(null_counts):
-        logger.info("Null values found:")
-        logger.info(null_counts[null_counts > 0])
-
-        # Count rows before dropping
-        initial_count = len(df)
-
-        # Drop rows with any null values in place
-        df.dropna(inplace=True)
-
-        # Log how many rows were dropped
-        rows_dropped = initial_count - len(df)
-        logger.info(f"Dropped {rows_dropped} rows containing null values.")
-    else:
-        logger.info("No null values found.")
-
-    # Checking for duplicates
+    logger.info("Starting to remove duplicate rows.")
+    initial_count = len(df)
     duplicates = df.duplicated().sum()
+
     if duplicates:
         logger.info(f"Number of duplicate rows: {duplicates}")
         # Keep the first occurrence of each duplicate row and remove the others
-        df = df.drop_duplicates(keep="first")
-        logger.info("First occurrence of each duplicate row has been kept.")
+        deduped_df = df.drop_duplicates(keep="first")
+        duplicates_removed = initial_count - len(deduped_df)
+        logger.info(
+            f"First occurrence of each duplicate row has been kept. "
+            f"Dropped {duplicates_removed} duplicate rows."
+        )
     else:
         logger.info("No duplicate rows found.")
+        deduped_df = df.copy()
+        duplicates_removed = 0  # No duplicates found, so no rows removed
+
+    return deduped_df, duplicates_removed
+
+
+def remove_null_values(df):
+    """
+    Removes rows with null values from the DataFrame and logs the result.
+
+    Parameters:
+        df (pd.DataFrame): The DataFrame from which to remove nulls.
+
+    Returns:
+        tuple: A tuple containing the non-null DataFrame and the count of
+        removed rows.
+    """
+    initial_count = len(df)
+    null_counts = df.isnull().sum()
+
+    if np.any(null_counts):
+        logger.info("Null values found:")
+        logger.info(null_counts[null_counts > 0])
+        # Drop rows with any null values
+        non_null_df = df.dropna()
+        nulls_removed = initial_count - len(non_null_df)
+        logger.info(f"Dropped {nulls_removed} rows containing null values.")
+    else:
+        logger.info("No null values found.")
+        non_null_df = df.copy()
+        nulls_removed = 0
+
+    return non_null_df, nulls_removed
 
 
 def filter_out_incomplete_urls(df):
@@ -245,12 +271,6 @@ if __name__ == "__main__":
 
     logger.info("Creating separate DataFrames for each domain: \n ")
 
-    # Applying preprocessing steps
-    check_and_clean_data(df)
-
-    # Filter out rows where the URL doesn't have a repository name (83 rows)
-    df = filter_out_incomplete_urls(df)
-
     # Clean and filter URLs
     df["repourl"] = df["repourl"].apply(get_base_repo_url)
     df = df[df["repourl"].notna()]  # Remove any rows with invalid URLs
@@ -304,6 +324,8 @@ if __name__ == "__main__":
         f"Count of repositories for each domain has been saved to : " f"{f.name}"
     )
 
+    other_domains_df = pd.DataFrame(columns=df.columns)
+
     for domain, domain_df in dfs_by_domain.items():
         if len(domain_df) > 10:
             domain_df.to_csv(
@@ -314,3 +336,18 @@ if __name__ == "__main__":
                 f"Saved {domain} domain DataFrame with "
                 f"{len(domain_df)} entries to {data_folder}"
             )
+
+        # Append DataFrames with less than 10 repositories to the
+        # other_domains_df
+        else:
+            other_domains_df = pd.concat(
+                [other_domains_df, domain_df], ignore_index=True
+            )
+
+    # Save the DataFrame containing domains with less than 10 repositories
+    if not other_domains_df.empty:
+        other_domains_df.to_csv(data_folder / "other_domains.csv", index=False)
+        logger.info(
+            f"Saved DataFrame with domains having less than 10 repositories to: "
+            f"{data_folder / 'other_domains.csv'}"
+        )
