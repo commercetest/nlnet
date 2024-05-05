@@ -10,7 +10,7 @@ the following steps:
 3. Dropping rows with null values.
 
 The script sets up the working directory and logger, reads the original data
-file, and filters the data to include only domains with more than four
+file, and filters the data to include only domains with ten or more
 occurrences. It then calculates various metrics for each domain, including the
  number of duplicates, incomplete URLs, and null values.
 
@@ -67,12 +67,12 @@ original_df["repodomain"] = original_df["repourl"].str.extract(
 )[1]
 repodomain_counts = original_df["repodomain"].value_counts()
 
-domains_with_more_than_four = repodomain_counts[repodomain_counts > 6].index
+domains_with_more_than_ten = repodomain_counts[repodomain_counts >= 10].index
 
 
 # Filter the original DataFrame
 filtered_original_df = original_df[
-    original_df["repodomain"].isin(domains_with_more_than_four)
+    original_df["repodomain"].isin(domains_with_more_than_ten)
 ]
 repodomain_counts = filtered_original_df["repodomain"].value_counts()
 
