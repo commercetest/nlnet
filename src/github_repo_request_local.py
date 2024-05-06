@@ -1,3 +1,4 @@
+import re
 import argparse
 import subprocess
 from pathlib import Path
@@ -84,7 +85,7 @@ def parse_args():
     parser.add_argument(
         "--input-file",
         type=str,
-        default=str(Path("data/source_code_hosting_platform_dfs/github.com.csv")),
+        default=str(Path("data/original_massive_df.csv")),
         help="Path to the input CSV file.",
     )
     parser.add_argument(
@@ -155,6 +156,16 @@ def get_last_commit_hash(repo_dir: Path):
         return None  # Return None to indicate failure
 
 
+def sanitise_directory_name(name):
+    """Sanitise the directory name by removing or replacing non-alphanumeric
+    characters."""
+    # Replace periods and other non-alphanumeric characters with an underscore
+    # This regex replaces all non-alphanumeric, non-hyphen characters with an
+    # underscore
+    sanitised_name = re.sub(r"[^\w-]", "_", name)
+    return sanitised_name
+
+
 if __name__ == "__main__":
     args = parse_args()
     input_file = args.input_file
@@ -166,10 +177,14 @@ if __name__ == "__main__":
     # repository root
     repo_root = get_working_directory_or_git_root()
     logger.info(f"repo_root is: {repo_root}")
+
+    error_log_path = repo_root / Path("data/error_log.txt")
+    error_log_file = open(error_log_path, "a")  # Open the file in append mode
+
     updated_csv_path = repo_root / output_file
     logger.info(f"updated_csv_path is: {updated_csv_path}")
-    clone_dir_base = repo_root / Path(args.clone_dir)
 
+    clone_dir_base = repo_root / Path(args.clone_dir)
     # Ensures the directory exists
     clone_dir_base.mkdir(parents=True, exist_ok=True)
 
@@ -182,11 +197,11 @@ if __name__ == "__main__":
         if csv_file_path.exists():
             df = pd.read_csv(csv_file_path)
             df["testfilecountlocal"] = -1  # Initialise if first run
+            df["clone_status"] = None  # Initialise the clone status column
         else:
             logger.error(
                 f"The input file has not been found at {csv_file_path}. Exiting..."
             )
-
             # Exit with error code 1 indicating that an error occurred
             sys.exit(1)
 
@@ -217,9 +232,16 @@ if __name__ == "__main__":
             if not repo_url or repo_url is None:
                 logger.info(f"Invalid repository URL: {repo_url}")
                 continue
+
+            repo_domain = row["repodomain"]
+            # Sanitise the domain name
+            sanitised_domain = sanitise_directory_name(repo_domain)
             repo_name = Path(repo_url.split("/")[-1]).stem
-            clone_dir = clone_dir_base / repo_name
-            logger.info(f"clone_dir is: {clone_dir}")
+            # Adjusted path including domain
+            domain_specific_dir = clone_dir_base / sanitised_domain
+            domain_specific_dir.mkdir(parents=True, exist_ok=True)
+            clone_dir = domain_specific_dir / repo_name
+            logger.info(f"Sanitised clone directory is: {clone_dir}")
 
             # Clone only if directory doesn't exist
             if not clone_dir.exists():
@@ -229,7 +251,9 @@ if __name__ == "__main__":
                         ["git", "clone", repo_url, str(clone_dir)],
                         check=True,
                         capture_output=True,
+                        text=True,  # Output is captured as text
                     )
+                    df.at[index, "clone_status"] = "successful"
                     logger.info(f"Successfully cloned the repo: {repo_name}")
 
                     # Fetch the last commit hash and store it in the DataFrame
@@ -241,15 +265,27 @@ if __name__ == "__main__":
                     processed_count += 1
 
                 except subprocess.CalledProcessError as e:
+                    # Capture the error message from stderr
+                    error_message = e.stderr.strip()
                     logger.error(
-                        f"Failed to clone the repo: {repo_name}.Exception: {e}"
+                        f"Failed to clone the repo: {repo_name}.Exception: {e},"
+                        f"Error mesage {error_message}"
                     )
+                    df.at[index, "clone_status"] = "failed"
                     df.at[index, "testfilecountlocal"] = -1
 
                     # Even on failure, consider it processed for this batch
                     processed_count += 1
-
+                    # Write the error information to the error log file
+                    error_log_file.write(
+                        f"Repository URL: {repo_url}\nError Message: "
+                        f"{error_message}\n\n"
+                    )
                     continue
+            else:
+                # If already exists, consider as successful unless checked
+                # otherwise
+                df.at[index, "clone_status"] = "successful"
 
             # Always attempt to fetch the last commit hash if not already
             # fetched
@@ -298,7 +334,7 @@ if __name__ == "__main__":
         if not args.keep_clones:
             # If user did not specify --keep-clones, delete the directory
             logger.info(
-                '"--keep-clones" flag was not specified, deleting the ' "directory"
+                '"--keep-clones" flag was not specified, deleting the directory"'
             )
             shutil.rmtree(clone_dir)
 
@@ -320,3 +356,5 @@ if __name__ == "__main__":
             f.write(
                 "\n"
             )  # Optionally add a newline between each entry for better readability
+
+    error_log_file.close()
