@@ -232,6 +232,9 @@ def get_base_repo_url(url):
         "gitlab.torproject.org",
         "codeberg.org",
         "framagit.org",
+        "hydrillabugs.koszko.org",
+        "git.replicant.us",
+        "gerrit.osmocom.org",
     }
 
     # Determine the base path based on the hosting platform
@@ -293,23 +296,44 @@ if __name__ == "__main__":
         f"file and saved in {output_dir} "
     )
 
-    logger.info("Creating separate DataFrames for each domain: \n ")
+    # Some of the URLs end with "/". I need to remove them.
+    df["repourl"] = df["repourl"].str.rstrip("/")
 
-    # Clean and filter URLs
-    df["repourl"] = df["repourl"].apply(get_base_repo_url)
-    df = df[df["repourl"].notna()]  # Remove any rows with invalid URLs
+    # Removing duplicate rows
+    remove_duplicates(df)
+
+    # Removing null value is any (There is no null values in the data at the
+    # moment)
+    remove_null_values(df)
 
     # replace http with https
     df["repourl"] = df["repourl"].str.replace(r"^http\b", "https", regex=True)
 
-    # Some of the URLs end with "/". I need to remove them.
-    df["repourl"] = df["repourl"].str.rstrip("/")
-
     # Extract the domain from the URL
-    df["domain"] = df["repourl"].str.extract(r"https?://(www\.)?([^/]+)")[1]
+    df["repodomain"] = df["repourl"].str.extract(r"https?://(www\.)?([^/]+)")[1]
 
-    # Get the distinct domains
-    distinct_domains = df["domain"].unique()
+    # Extracting the base repo url
+    df["base_repo_url"] = df["repourl"].apply(get_base_repo_url)
+
+    filter_out_incomplete_urls(df)
+
+    # Remove any rows with invalid URLs
+    df = df[df["base_repo_url"].notna()]
+
+    # Remove any rows with invalid repodomain
+    df = df[df["repodomain"].notna()]
+
+    # Save the dataframe as a CSV file
+    df.to_csv(output_dir / "original_massive_df.csv", index=False)
+    logger.info(
+        f'Dataframe "original_massive_df" is created from the '
+        f'"original_df.csv" '
+        f"file and saved in {output_dir} "
+    )
+
+    logger.info("Creating separate DataFrames for each domain: \n ")
+    # Get the distinct repo domains
+    distinct_domains = df["repodomain"].unique()
 
     # A dictionary comprehension is used to create a separate DataFrame for each
     # unique domain. For each domain in the list of unique domains, we filter
@@ -318,7 +342,9 @@ if __name__ == "__main__":
     # no longer needed and reset the index to clean up the DataFrame.
 
     dfs_by_domain = {
-        domain: df[df["domain"] == domain].drop("domain", axis=1).reset_index(drop=True)
+        domain: df[df["repodomain"] == domain]
+        .drop("repodomain", axis=1)
+        .reset_index(drop=True)
         for domain in distinct_domains
     }
     # Each key in the dictionary is a domain, and the value is the corresponding
