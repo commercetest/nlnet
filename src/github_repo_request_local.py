@@ -23,34 +23,41 @@ of test file records. It saves progress incrementally and can resume where it
 left off, ensuring that data from previous runs is properly managed.
 
 Enhancements include:
+- Organisation of cloned repositories into subdirectories based on the
+'repodomain' column from the input CSV, facilitating better management and
+navigation.
+- Detailed error logging functionality, capturing any issues during the
+repository cloning process and saving these to a separate error log file
+(`data/error_log.txt`).
+- Addition of a 'clone_status' column in the output CSV to record the outcome of
+ each cloning attempt as 'successful' or 'failed'.
+- Improved error handling during cloning operations, including the capture and
+logging of detailed error messages to assist in troubleshooting and ensuring
+robustness.
 
-- Exclusion of specific file extensions during the test file count to tailor
-  the data collection.
+Additional Features:
+- Exclusion of specific file extensions during the test file count to tailor the
+ data collection.
 - Optional retention of cloned repositories post-processing, controlled via
-  command-line arguments.
+command-line arguments.
 - Batch processing capabilities to manage large sets of data efficiently and
-  save progress periodically.
-- Conversion of the final data collection to Turtle (TTL) format for RDF
-  compliant data storage, with the ability to specify the output location.
+save progress periodically.
+- Conversion of the final data collection to Turtle (TTL) format for
+RDF-compliant data storage, with the ability to specify the output location.
 - Writing of repository URLs and associated test filenames to a text file for
-  easy auditing and verification. The location of this text file can be
-  specified via command-line arguments.
-
-Users can specify excluded file extensions, choose a custom directory for
-cloning repositories, and set paths for output files (both CSV and text formats).
-The script also allows specification of the output path for the TTL format file,
-facilitating easy integration with semantic web technologies.
+easy auditing and verification. The location of this text file can be specified
+ via command-line arguments.
 
 Command Line Arguments:
 - --exclude: Specify file extensions to exclude from test file counts.
 - --clone-dir: Set a custom directory for cloning the repositories.
 - --keep-clones: Option to retain cloned repositories after processing, which
-  can be useful for subsequent manual reviews or further automated tasks.
+can be useful for subsequent manual reviews or further automated tasks.
 - --input-file: Path to the input CSV file.
 - --output-file: Path to the output CSV file that includes test file counts and
-  last commit hashes.
-- --test-file-list: Path to the text file for recording repository URLs and
-  test filenames.
+last commit hashes.
+- --test-file-list: Path to the text file for recording repository URLs and test
+  filenames.
 - --ttl-file: Path to save the Turtle (TTL) format file.
 """
 
