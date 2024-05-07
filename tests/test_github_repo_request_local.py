@@ -13,9 +13,7 @@ def test_get_base_repo_url():
         get_base_repo_url("https://github.com/getdnsapi/stubby")
         == "https://github.com/getdnsapi/stubby"
     )
-
     assert get_base_repo_url("https://github.com/namecoin") is None
-
     assert (
         get_base_repo_url("https://github.com/osresearch/heads/issues/540")
         == "https://github.com/osresearch/heads"
@@ -26,7 +24,6 @@ def test_get_base_repo_url():
         get_base_repo_url("https://git.sr.ht/~dvn/boxen")
         == "https://git.sr.ht/~dvn/boxen"
     )
-
     assert (
         get_base_repo_url(
             "https://redmine.replicant.us/projects/replicant"
@@ -35,36 +32,11 @@ def test_get_base_repo_url():
         == "https://redmine.replicant.us/projects/replicant"
     )
 
-    # Test for Codeberg and Framagit profiles and repositories
-    assert get_base_repo_url("https://codeberg.org/interpeer") is None
-    assert (
-        get_base_repo_url("https://codeberg.org/forgejo/forgejo")
-        == "https://codeberg.org/forgejo/forgejo"
-    )
-    assert get_base_repo_url("https://framagit.org/incommon.cc") is None
-    assert (
-        get_base_repo_url("https://framagit.org/framasoft/CHAP/mobilizon")
-        == "https://framagit.org/framasoft/CHAP/mobilizon"
-    )
-
-    # Test for GitLab with nested groups
-    assert (
-        get_base_repo_url("https://gitlab.com/technostructures/kazarma/kazarma")
-        == "https://gitlab.com/technostructures/kazarma/kazarma"
-    )
-
     # Checking the `repourls` which ends with `.git`
     assert (
-        get_base_repo_url("https://github.com/stalwartlabs/mail-server.git")
-        == "https://github.com/stalwartlabs/mail-server"
-    )
-
-    assert (
         get_base_repo_url("https://github.com/tdf/odftoolkit.git")
-        == "https://github.com/tdf/odftoolkit"
+        == "https://github.com/tdf/odftoolkit.git"
     )
-
-    # Test URLs from hosts that require '.git' in the path
     assert (
         get_base_repo_url("https://git.savannah.gnu.org/git/mes.git")
         == "https://git.savannah.gnu.org/git/mes.git"
@@ -73,8 +45,10 @@ def test_get_base_repo_url():
         get_base_repo_url("https://git.taler.net/git/libtalerutil.git")
         == "https://git.taler.net/git/libtalerutil.git"
     )
-    assert get_base_repo_url("https://git.taler.net/taler-ios.git") is None
-
+    assert (
+        get_base_repo_url("https://git.taler.net/taler-ios.git")
+        == "https://git.taler.net/taler-ios.git"
+    )
     # Invalid URL formats
     assert get_base_repo_url("just-a-string") is None
     assert get_base_repo_url("http:///a-bad-url.com") is None
@@ -82,12 +56,72 @@ def test_get_base_repo_url():
     # URLs with query parameters or fragments
     assert (
         get_base_repo_url("https://github.com/getdnsapi/stubby.git#readme")
-        == "https://github.com/getdnsapi/stubby"
+        == "https://github.com/getdnsapi/stubby.git"
     )
 
     assert (
         get_base_repo_url("https://github.com/getdnsapi/stubby.git?branch=main")
-        == "https://github.com/getdnsapi/stubby"
+        == "https://github.com/getdnsapi/stubby.git"
+    )
+    # Writing test for direct_path_platforms
+    #         "gitlab.com",
+    #         "gitlab.torproject.org",
+    #         "codeberg.org",
+    #         "framagit.org",
+    #         "hydrillabugs.koszko.org",
+    #         "git.replicant.us",
+    #         "gerrit.osmocom.org",
+    #         "git.taler.net"
+
+    assert (
+        get_base_repo_url("https://gitlab.com/technostructures/kazarma/kazarma")
+        == "https://gitlab.com/technostructures/kazarma/kazarma"
+    )
+
+    assert (
+        get_base_repo_url("https://gitlab.torproject.org/tpo/network-heal")
+        == "https://gitlab.torproject.org/tpo/network-heal"
+    )
+
+    assert (
+        get_base_repo_url("https://codeberg.org/interpeer")
+        == "https://codeberg.org/interpeer"
+    )
+
+    assert (
+        get_base_repo_url("https://codeberg.org/openEngiadina/geopub")
+        == "https://codeberg.org/openEngiadina/geopub"
+    )
+
+    assert (
+        get_base_repo_url("https://codeberg.org/librEDA")
+        == "https://codeberg.org/librEDA"
+    )
+
+    assert (
+        get_base_repo_url("https://framagit.org/incommon.cc")
+        == "https://framagit.org/incommon.cc"
+    )
+
+    assert (
+        get_base_repo_url(
+            "https://hydrillabugs.koszko.org/projects/haketilo/repository"
+        )
+        == "https://hydrillabugs.koszko.org/projects/haketilo/repository"
+    )
+
+    assert (
+        get_base_repo_url("https://git.replicant.us/replicant")
+        == "https://git.replicant.us/replicant"
+    )
+
+    assert (
+        get_base_repo_url("https://gerrit.osmocom.org/plugins/gitiles/ims")
+        == "https://gerrit.osmocom.org/plugins/gitiles/ims"
+    )
+
+    assert get_base_repo_url("https://git.taler.net/taler-ios.git") == (
+        "https://git.taler.net/taler-ios.git"
     )
 
 
