@@ -295,7 +295,7 @@ if __name__ == "__main__":
     # Removing duplicate rows
     remove_duplicates(df)
 
-    # Removing null value is any (There is no null values in the data at the
+    # Removing null value if any (There is no null values in the data at this
     # moment)
     remove_null_values(df)
 
