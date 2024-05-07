@@ -1,13 +1,15 @@
-import re
 import argparse
+import re
+import shutil
 import subprocess
+import sys
 from pathlib import Path
+
 import pandas as pd
 from loguru import logger
+
 from utils.git_utils import get_working_directory_or_git_root
 from utils.export_to_rdf import dataframe_to_ttl
-import shutil
-import sys
 
 """
 This script automates the process of cloning GitHub repositories listed in a
@@ -177,6 +179,7 @@ if __name__ == "__main__":
     args = parse_args()
     input_file = args.input_file
     output_file = args.output_file
+
     # Log the excluded file extensions
     logger.info(f"Excluded file extensions: {', '.join(args.exclude)}")
 
@@ -213,7 +216,7 @@ if __name__ == "__main__":
             sys.exit(1)
 
     if "last_commit_hash" not in df.columns:
-        df["last_commit_hash"] = None  # Initialize the column with None
+        df["last_commit_hash"] = None  # Initialise the column with None
 
     # Number of repositories to process before saving to CSV
     BATCH_SIZE = 10
@@ -241,9 +244,11 @@ if __name__ == "__main__":
                 continue
 
             repo_domain = row["repodomain"]
+
             # Sanitise the domain name
             sanitised_domain = sanitise_directory_name(repo_domain)
             repo_name = Path(repo_url.split("/")[-1]).stem
+
             # Adjusted path including domain
             domain_specific_dir = clone_dir_base / sanitised_domain
             domain_specific_dir.mkdir(parents=True, exist_ok=True)
@@ -276,7 +281,7 @@ if __name__ == "__main__":
                     error_message = e.stderr.strip()
                     logger.error(
                         f"Failed to clone the repo: {repo_name}.Exception: {e},"
-                        f"Error mesage {error_message}"
+                        f"Error message {error_message}"
                     )
                     df.at[index, "clone_status"] = "failed"
                     df.at[index, "testfilecountlocal"] = -1
@@ -290,8 +295,7 @@ if __name__ == "__main__":
                     )
                     continue
             else:
-                # If already exists, consider as successful unless checked
-                # otherwise
+                # If cloned directory already exists, consider as successful
                 df.at[index, "clone_status"] = "successful"
 
             # Always attempt to fetch the last commit hash if not already
