@@ -39,6 +39,7 @@ import argparse
 from pathlib import Path
 from loguru import logger
 from utils.git_utils import get_working_directory_or_git_root
+from utils.string_utils import sanitise_directory_name
 import os
 from urllib.parse import urlparse
 
@@ -200,19 +201,6 @@ def get_base_repo_url(url):
     parsed_url = urlparse(url)
     path = parsed_url.path.strip("/")
 
-    # Host-specific criteria for handling '.git'
-    hosts_with_mandatory_git_suffix = [
-        "git.savannah.gnu.org",
-        "git.torproject.org",
-        "git.taler.net",
-    ]
-    should_strip_git = not any(
-        host in parsed_url.netloc for host in hosts_with_mandatory_git_suffix
-    )
-
-    if path.endswith(".git") and should_strip_git:
-        path = path[:-4]  # Remove the last 4 characters, '.git'
-
     parts = path.split("/")
     print(f"parts: {parts}")
 
@@ -319,7 +307,7 @@ if __name__ == "__main__":
     # Save the dataframe as a CSV file
     df.to_csv(output_dir / "original_massive_df.csv", index=False)
     logger.info(
-        f'Dataframe "original_massive_df" is created from the '
+        f'Dataframe "original_massive_df.csv" has been created from the '
         f'"original_df.csv" '
         f"file and saved in {output_dir} "
     )
@@ -372,7 +360,7 @@ if __name__ == "__main__":
     for domain, domain_df in dfs_by_domain.items():
         if len(domain_df) >= 10:
             domain_df.to_csv(
-                data_folder / f"{domain.replace('/', '_').replace(':', '_')}.csv",
+                data_folder / f"{sanitise_directory_name(domain)}.csv",
                 index=False,
             )
             logger.info(
