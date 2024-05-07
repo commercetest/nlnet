@@ -1,31 +1,24 @@
 """
-This script processes a TSV file to create a DataFrame, from which it extracts
-domains and organises entries into separate DataFrames based on these domains.
-Each domain-specific DataFrame is saved as a CSV file if it contains more than
-10 records. Additionally, the script performs data cleaning by removing rows
-with null values and duplicates, and ensures URLs are complete and well-formed
-before extracting the domain for analysis.
-
-The script also includes functionality to replace HTTP with HTTPS in URLs,
-remove trailing slashes, and save the count of repositories for each domain
-into a text file, facilitating easy reference and further analysis. It's
-designed for flexibility, supporting command-line arguments that allow users to
-specify custom paths for the input TSV file and the output directory.
+This script processes a TSV file to create a DataFrame, performs data
+cleaning, and organises entries into separate DataFrames based on the domain
+extracted from URLs. Each domain-specific DataFrame is saved as a CSV file if
+it contains more than 10 records. It also performs detailed data cleaning by
+removing rows with null values and duplicates, and ensures URLs are complete
+and well-formed before extracting the domain for analysis.
 
 Features:
-- Reads a TSV file specified by the user.
-- Performs data cleaning, including checking for null values,
-  duplicates, and URL completeness.
-- Extracts the domain from each URL in the 'repourl' column to determine where
-  the code is hosted.
-- Separates the DataFrame into multiple DataFrames based on unique domains,
-  facilitating domain-specific analyses.
-- Saves DataFrames with more than 10 entries to a structured directory format,
-  catering to repositories hosted under distinct domains.
-- Outputs the count of repositories for each domain into a text file for easy
-  reference and further analysis.
-- Converts HTTP to HTTPS in URLs and cleans them by removing trailing slashes.
-
+- **Data Input and Cleaning**: Reads a user-specified TSV file to create a
+DataFrame, checks for null values and duplicates, and ensures that URLs are
+complete and well-formed. The script also converts HTTP URLs to HTTPS and
+removes trailing slashes to standardise URL formats.
+- **Domain Extraction and Organisation**: Extracts domains from URLs and
+organises the data into separate DataFrames based on these domains.
+- **Data Output**: Saves DataFrames that contain more than 10 entries as CSV
+in a structured directory format, catering to repositories hosted under distinct
+domains. Additionally, it outputs the count of repositories for each domain
+into a text file for easy reference and further analysis.
+- **Command Line Flexibility**: Supports command-line arguments that allow users
+to specify custom paths for the input TSV file and the output directory.
 Command Line Arguments:
 - --input-file: Specifies the path to the input TSV file.
 - --output-folder: Specifies the directory where output CSV files and other
