@@ -1,5 +1,4 @@
 import argparse
-import re
 import shutil
 import subprocess
 import sys
@@ -10,6 +9,7 @@ from loguru import logger
 
 from utils.git_utils import get_working_directory_or_git_root
 from utils.export_to_rdf import dataframe_to_ttl
+from utils.string_utils import sanitise_directory_name
 
 """
 This script automates the process of cloning GitHub repositories listed in a
@@ -163,16 +163,6 @@ def get_last_commit_hash(repo_dir: Path):
             f"Failed to fetch last commit hash for {repo_dir}. " f"Exception: {e}"
         )
         return None  # Return None to indicate failure
-
-
-def sanitise_directory_name(name):
-    """Sanitise the directory name by removing or replacing non-alphanumeric
-    characters."""
-    # Replace periods and other non-alphanumeric characters with an underscore
-    # This regex replaces all non-alphanumeric, non-hyphen characters with an
-    # underscore
-    sanitised_name = re.sub(r"[^\w-]", "_", name)
-    return sanitised_name
 
 
 if __name__ == "__main__":
