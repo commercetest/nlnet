@@ -1,31 +1,24 @@
 """
-This script processes a TSV file to create a DataFrame, from which it extracts
-domains and organises entries into separate DataFrames based on these domains.
-Each domain-specific DataFrame is saved as a CSV file if it contains more than
-10 records. Additionally, the script performs data cleaning by removing rows
-with null values and duplicates, and ensures URLs are complete and well-formed
-before extracting the domain for analysis.
-
-The script also includes functionality to replace HTTP with HTTPS in URLs,
-remove trailing slashes, and save the count of repositories for each domain
-into a text file, facilitating easy reference and further analysis. It's
-designed for flexibility, supporting command-line arguments that allow users to
-specify custom paths for the input TSV file and the output directory.
+This script processes a TSV file to create a DataFrame, performs data
+cleaning, and organises entries into separate DataFrames based on the domain
+extracted from URLs. Each domain-specific DataFrame is saved as a CSV file if
+it contains more than 10 records. It also performs detailed data cleaning by
+removing rows with null values and duplicates, and ensures URLs are complete
+and well-formed before extracting the domain for analysis.
 
 Features:
-- Reads a TSV file specified by the user.
-- Performs data cleaning, including checking for null values,
-  duplicates, and URL completeness.
-- Extracts the domain from each URL in the 'repourl' column to determine where
-  the code is hosted.
-- Separates the DataFrame into multiple DataFrames based on unique domains,
-  facilitating domain-specific analyses.
-- Saves DataFrames with more than 10 entries to a structured directory format,
-  catering to repositories hosted under distinct domains.
-- Outputs the count of repositories for each domain into a text file for easy
-  reference and further analysis.
-- Converts HTTP to HTTPS in URLs and cleans them by removing trailing slashes.
-
+- **Data Input and Cleaning**: Reads a user-specified TSV file to create a
+DataFrame, checks for null values and duplicates, and ensures that URLs are
+complete and well-formed. The script also converts HTTP URLs to HTTPS and
+removes trailing slashes to standardise URL formats.
+- **Domain Extraction and Organisation**: Extracts domains from URLs and
+organises the data into separate DataFrames based on these domains.
+- **Data Output**: Saves DataFrames that contain more than 10 entries as CSV
+in a structured directory format, catering to repositories hosted under distinct
+domains. Additionally, it outputs the count of repositories for each domain
+into a text file for easy reference and further analysis.
+- **Command Line Flexibility**: Supports command-line arguments that allow users
+to specify custom paths for the input TSV file and the output directory.
 Command Line Arguments:
 - --input-file: Specifies the path to the input TSV file.
 - --output-folder: Specifies the directory where output CSV files and other
@@ -46,6 +39,7 @@ import argparse
 from pathlib import Path
 from loguru import logger
 from utils.git_utils import get_working_directory_or_git_root
+from utils.string_utils import sanitise_directory_name
 import os
 from urllib.parse import urlparse
 
@@ -190,14 +184,15 @@ def filter_out_incomplete_urls(df):
 
 def get_base_repo_url(url):
     """
-    Extracts the base repository URL from a GitHub URL. It handles URLs ending
-     with '.git'.
+    Extracts the base repository URL from various hosting platforms.
+    Handles URLs ending with '.git', supports nested groups in GitLab,
+    and adapts to different platform URL structures.
 
     Args:
-        url (str): The full GitHub URL.
+      url (str): The full URL to a Git repository.
 
     Returns:
-        str: The base repository URL if valid, otherwise returns None.
+      str: The base repository URL if valid, otherwise returns None.
     """
     # Return None immediately if the URL is None or empty
     if not url:
@@ -206,17 +201,30 @@ def get_base_repo_url(url):
     parsed_url = urlparse(url)
     path = parsed_url.path.strip("/")
 
-    # Check if the path ends with '.git' and strip it off
-    if path.endswith(".git"):
-        path = path[:-4]  # Remove the last 4 characters, '.git'
-
     parts = path.split("/")
+    print(f"parts: {parts}")
 
-    if len(parts) >= 2:
-        # Format and return the URL with the owner and repository name
-        return f"{parsed_url.scheme}://{parsed_url.netloc}/{parts[0]}/{parts[1]}"
-    else:
+    # Check if the URL lacks specific repository details(owner/reponame)
+    if len(parts) < 2:
         return None
+        # Define platforms that use the complete path without slicing
+    direct_path_platforms = {
+        "gitlab.com",
+        "gitlab.torproject.org",
+        "codeberg.org",
+        "framagit.org",
+        "hydrillabugs.koszko.org",
+        "git.replicant.us",
+        "gerrit.osmocom.org",
+    }
+
+    # Determine the base path based on the hosting platform
+    if any(host in parsed_url.netloc for host in direct_path_platforms):
+        base_path = "/".join(parts)
+    else:
+        base_path = "/".join(parts[:2])  # Default handling for GitHub-like URLs
+
+    return f"{parsed_url.scheme}://{parsed_url.netloc}/{base_path}"
 
 
 if __name__ == "__main__":
@@ -269,23 +277,44 @@ if __name__ == "__main__":
         f"file and saved in {output_dir} "
     )
 
-    logger.info("Creating separate DataFrames for each domain: \n ")
+    # Some of the URLs end with "/". I need to remove them.
+    df["repourl"] = df["repourl"].str.rstrip("/")
 
-    # Clean and filter URLs
-    df["repourl"] = df["repourl"].apply(get_base_repo_url)
-    df = df[df["repourl"].notna()]  # Remove any rows with invalid URLs
+    # Removing duplicate rows
+    remove_duplicates(df)
+
+    # Removing null value if any (There is no null values in the data at this
+    # moment)
+    remove_null_values(df)
 
     # replace http with https
     df["repourl"] = df["repourl"].str.replace(r"^http\b", "https", regex=True)
 
-    # Some of the URLs end with "/". I need to remove them.
-    df["repourl"] = df["repourl"].str.rstrip("/")
-
     # Extract the domain from the URL
-    df["domain"] = df["repourl"].str.extract(r"https?://(www\.)?([^/]+)")[1]
+    df["repodomain"] = df["repourl"].str.extract(r"https?://(www\.)?([^/]+)")[1]
 
-    # Get the distinct domains
-    distinct_domains = df["domain"].unique()
+    # Extracting the base repo url
+    df["base_repo_url"] = df["repourl"].apply(get_base_repo_url)
+
+    filter_out_incomplete_urls(df)
+
+    # Remove any rows with invalid URLs
+    df = df[df["base_repo_url"].notna()]
+
+    # Remove any rows with invalid repodomain
+    df = df[df["repodomain"].notna()]
+
+    # Save the dataframe as a CSV file
+    df.to_csv(output_dir / "original_massive_df.csv", index=False)
+    logger.info(
+        f'Dataframe "original_massive_df.csv" has been created from the '
+        f'"original_df.csv" '
+        f"file and saved in {output_dir} "
+    )
+
+    logger.info("Creating separate DataFrames for each domain: \n ")
+    # Get the distinct repo domains
+    distinct_domains = df["repodomain"].unique()
 
     # A dictionary comprehension is used to create a separate DataFrame for each
     # unique domain. For each domain in the list of unique domains, we filter
@@ -294,7 +323,9 @@ if __name__ == "__main__":
     # no longer needed and reset the index to clean up the DataFrame.
 
     dfs_by_domain = {
-        domain: df[df["domain"] == domain].drop("domain", axis=1).reset_index(drop=True)
+        domain: df[df["repodomain"] == domain]
+        .drop("repodomain", axis=1)
+        .reset_index(drop=True)
         for domain in distinct_domains
     }
     # Each key in the dictionary is a domain, and the value is the corresponding
@@ -327,9 +358,9 @@ if __name__ == "__main__":
     other_domains_df = pd.DataFrame(columns=df.columns)
 
     for domain, domain_df in dfs_by_domain.items():
-        if len(domain_df) > 10:
+        if len(domain_df) >= 10:
             domain_df.to_csv(
-                data_folder / f"{domain.replace('/', '_').replace(':', '_')}.csv",
+                data_folder / f"{sanitise_directory_name(domain)}.csv",
                 index=False,
             )
             logger.info(

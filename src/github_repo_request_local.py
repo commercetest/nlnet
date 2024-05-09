@@ -1,12 +1,15 @@
 import argparse
+import shutil
 import subprocess
+import sys
 from pathlib import Path
+
 import pandas as pd
 from loguru import logger
+
 from utils.git_utils import get_working_directory_or_git_root
 from utils.export_to_rdf import dataframe_to_ttl
-import shutil
-import sys
+from utils.string_utils import sanitise_directory_name
 
 """
 This script automates the process of cloning GitHub repositories listed in a
@@ -22,34 +25,41 @@ of test file records. It saves progress incrementally and can resume where it
 left off, ensuring that data from previous runs is properly managed.
 
 Enhancements include:
+- Organisation of cloned repositories into subdirectories based on the
+'repodomain' column from the input CSV, facilitating better management and
+navigation.
+- Detailed error logging functionality, capturing any issues during the
+repository cloning process and saving these to a separate error log file
+(`data/error_log.txt`).
+- Addition of a 'clone_status' column in the output CSV to record the outcome of
+ each cloning attempt as 'successful' or 'failed'.
+- Improved error handling during cloning operations, including the capture and
+logging of detailed error messages to assist in troubleshooting and ensuring
+robustness.
 
-- Exclusion of specific file extensions during the test file count to tailor
-  the data collection.
+Additional Features:
+- Exclusion of specific file extensions during the test file count to tailor the
+ data collection.
 - Optional retention of cloned repositories post-processing, controlled via
-  command-line arguments.
+command-line arguments.
 - Batch processing capabilities to manage large sets of data efficiently and
-  save progress periodically.
-- Conversion of the final data collection to Turtle (TTL) format for RDF
-  compliant data storage, with the ability to specify the output location.
+save progress periodically.
+- Conversion of the final data collection to Turtle (TTL) format for
+RDF-compliant data storage, with the ability to specify the output location.
 - Writing of repository URLs and associated test filenames to a text file for
-  easy auditing and verification. The location of this text file can be
-  specified via command-line arguments.
-
-Users can specify excluded file extensions, choose a custom directory for
-cloning repositories, and set paths for output files (both CSV and text formats).
-The script also allows specification of the output path for the TTL format file,
-facilitating easy integration with semantic web technologies.
+easy auditing and verification. The location of this text file can be specified
+ via command-line arguments.
 
 Command Line Arguments:
 - --exclude: Specify file extensions to exclude from test file counts.
 - --clone-dir: Set a custom directory for cloning the repositories.
 - --keep-clones: Option to retain cloned repositories after processing, which
-  can be useful for subsequent manual reviews or further automated tasks.
+can be useful for subsequent manual reviews or further automated tasks.
 - --input-file: Path to the input CSV file.
 - --output-file: Path to the output CSV file that includes test file counts and
-  last commit hashes.
-- --test-file-list: Path to the text file for recording repository URLs and
-  test filenames.
+last commit hashes.
+- --test-file-list: Path to the text file for recording repository URLs and test
+  filenames.
 - --ttl-file: Path to save the Turtle (TTL) format file.
 """
 
@@ -84,7 +94,7 @@ def parse_args():
     parser.add_argument(
         "--input-file",
         type=str,
-        default=str(Path("data/source_code_hosting_platform_dfs/github.com.csv")),
+        default=str(Path("data/original_massive_df.csv")),
         help="Path to the input CSV file.",
     )
     parser.add_argument(
@@ -159,6 +169,7 @@ if __name__ == "__main__":
     args = parse_args()
     input_file = args.input_file
     output_file = args.output_file
+
     # Log the excluded file extensions
     logger.info(f"Excluded file extensions: {', '.join(args.exclude)}")
 
@@ -166,10 +177,14 @@ if __name__ == "__main__":
     # repository root
     repo_root = get_working_directory_or_git_root()
     logger.info(f"repo_root is: {repo_root}")
+
+    error_log_path = repo_root / Path("data/error_log.txt")
+    error_log_file = open(error_log_path, "a")  # Open the file in append mode
+
     updated_csv_path = repo_root / output_file
     logger.info(f"updated_csv_path is: {updated_csv_path}")
-    clone_dir_base = repo_root / Path(args.clone_dir)
 
+    clone_dir_base = repo_root / Path(args.clone_dir)
     # Ensures the directory exists
     clone_dir_base.mkdir(parents=True, exist_ok=True)
 
@@ -182,16 +197,16 @@ if __name__ == "__main__":
         if csv_file_path.exists():
             df = pd.read_csv(csv_file_path)
             df["testfilecountlocal"] = -1  # Initialise if first run
+            df["clone_status"] = None  # Initialise the clone status column
         else:
             logger.error(
                 f"The input file has not been found at {csv_file_path}. Exiting..."
             )
-
             # Exit with error code 1 indicating that an error occurred
             sys.exit(1)
 
     if "last_commit_hash" not in df.columns:
-        df["last_commit_hash"] = None  # Initialize the column with None
+        df["last_commit_hash"] = None  # Initialise the column with None
 
     # Number of repositories to process before saving to CSV
     BATCH_SIZE = 10
@@ -217,9 +232,18 @@ if __name__ == "__main__":
             if not repo_url or repo_url is None:
                 logger.info(f"Invalid repository URL: {repo_url}")
                 continue
+
+            repo_domain = row["repodomain"]
+
+            # Sanitise the domain name
+            sanitised_domain = sanitise_directory_name(repo_domain)
             repo_name = Path(repo_url.split("/")[-1]).stem
-            clone_dir = clone_dir_base / repo_name
-            logger.info(f"clone_dir is: {clone_dir}")
+
+            # Adjusted path including domain
+            domain_specific_dir = clone_dir_base / sanitised_domain
+            domain_specific_dir.mkdir(parents=True, exist_ok=True)
+            clone_dir = domain_specific_dir / repo_name
+            logger.info(f"Sanitised clone directory is: {clone_dir}")
 
             # Clone only if directory doesn't exist
             if not clone_dir.exists():
@@ -229,7 +253,9 @@ if __name__ == "__main__":
                         ["git", "clone", repo_url, str(clone_dir)],
                         check=True,
                         capture_output=True,
+                        text=True,  # Output is captured as text
                     )
+                    df.at[index, "clone_status"] = "successful"
                     logger.info(f"Successfully cloned the repo: {repo_name}")
 
                     # Fetch the last commit hash and store it in the DataFrame
@@ -241,15 +267,26 @@ if __name__ == "__main__":
                     processed_count += 1
 
                 except subprocess.CalledProcessError as e:
+                    # Capture the error message from stderr
+                    error_message = e.stderr.strip()
                     logger.error(
-                        f"Failed to clone the repo: {repo_name}.Exception: {e}"
+                        f"Failed to clone the repo: {repo_name}.Exception: {e},"
+                        f"Error message {error_message}"
                     )
+                    df.at[index, "clone_status"] = "failed"
                     df.at[index, "testfilecountlocal"] = -1
 
                     # Even on failure, consider it processed for this batch
                     processed_count += 1
-
+                    # Write the error information to the error log file
+                    error_log_file.write(
+                        f"Repository URL: {repo_url}\nError Message: "
+                        f"{error_message}\n\n"
+                    )
                     continue
+            else:
+                # If cloned directory already exists, consider as successful
+                df.at[index, "clone_status"] = "successful"
 
             # Always attempt to fetch the last commit hash if not already
             # fetched
@@ -298,7 +335,7 @@ if __name__ == "__main__":
         if not args.keep_clones:
             # If user did not specify --keep-clones, delete the directory
             logger.info(
-                '"--keep-clones" flag was not specified, deleting the ' "directory"
+                '"--keep-clones" flag was not specified, deleting the directory"'
             )
             shutil.rmtree(clone_dir)
 
@@ -320,3 +357,5 @@ if __name__ == "__main__":
             f.write(
                 "\n"
             )  # Optionally add a newline between each entry for better readability
+
+    error_log_file.close()
