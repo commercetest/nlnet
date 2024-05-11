@@ -210,7 +210,7 @@ def extract_and_flag_domains(df):
 
     # Flag rows where the domain could not be extracted
     # (i.e., unsupported schemes)
-    df["unsupported_url_flag"] = df["repodomain"].isnull()
+    df["domain_extraction_flag"] = df["repodomain"].isnull()
 
     return df
 
