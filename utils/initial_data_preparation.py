@@ -202,12 +202,8 @@ def get_base_repo_url(url):
     path = parsed_url.path.strip("/")
 
     parts = path.split("/")
-    print(f"parts: {parts}")
 
-    # Check if the URL lacks specific repository details(owner/reponame)
-    if len(parts) < 2:
-        return None
-        # Define platforms that use the complete path without slicing
+    # Define platforms that use the complete path without slicing
     direct_path_platforms = {
         "gitlab.com",
         "gitlab.torproject.org",
@@ -216,11 +212,15 @@ def get_base_repo_url(url):
         "hydrillabugs.koszko.org",
         "git.replicant.us",
         "gerrit.osmocom.org",
+        "git.taler.net",
     }
 
     # Determine the base path based on the hosting platform
     if any(host in parsed_url.netloc for host in direct_path_platforms):
         base_path = "/".join(parts)
+    elif len(parts) < 2:
+        # Check if the URL lacks specific repository details(owner/reponame)
+        return None
     else:
         base_path = "/".join(parts[:2])  # Default handling for GitHub-like URLs
 
@@ -277,8 +277,9 @@ if __name__ == "__main__":
         f"file and saved in {output_dir} "
     )
 
-    # Some of the URLs end with "/". I need to remove them.
-    df["repourl"] = df["repourl"].str.rstrip("/")
+    # Remove any trailing slashes and then strip leading/trailing spaces
+    # from 'repourl' column
+    df["repourl"] = df["repourl"].str.rstrip("/").str.strip()
 
     # Removing duplicate rows
     remove_duplicates(df)
