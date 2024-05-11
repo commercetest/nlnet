@@ -42,6 +42,29 @@ from utils.git_utils import get_working_directory_or_git_root
 from utils.string_utils import sanitise_directory_name
 import os
 from urllib.parse import urlparse
+import json
+from json import JSONEncoder
+import time
+
+
+class NumpyEncoder(JSONEncoder):
+    """Custom encoder for numpy data types."""
+
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.bool_):
+            return bool(obj)
+        return JSONEncoder.default(self, obj)
+
+
+# Define a custom error class
+class UnsupportedURLError(ValueError):
+    pass
 
 
 def parse_args():
@@ -68,65 +91,128 @@ def parse_args():
     return parser.parse_args()
 
 
-def remove_duplicates(df):
+def mark_duplicates(df, output_path):
     """
-    Removes duplicate rows from the DataFrame and logs the result.
+    Adds a 'duplicate_flag' column to the DataFrame to indicate duplicate rows,
+    and logs the process in a JSONLines file.
 
     Parameters:
-        df (pd.DataFrame): The DataFrame from which to remove duplicates.
+        df (pd.DataFrame): The DataFrame in which to mark duplicates.
+        output_path (str): The file path to write the JSONLines output.
 
     Returns:
-        tuple: A tuple containing the deduplicated DataFrame and the count of
-         removed rows.
+        pd.DataFrame: The DataFrame with an added 'duplicate_flag' column.
     """
-    logger.info("Starting to remove duplicate rows.")
-    initial_count = len(df)
-    duplicates = df.duplicated().sum()
+    logger.info("Marking duplicate rows.")
+    start_time = int(time.time() * 1000)
 
-    if duplicates:
-        logger.info(f"Number of duplicate rows: {duplicates}")
-        # Keep the first occurrence of each duplicate row and remove the others
-        deduped_df = df.drop_duplicates(keep="first")
-        duplicates_removed = initial_count - len(deduped_df)
-        logger.info(
-            f"First occurrence of each duplicate row has been kept. "
-            f"Dropped {duplicates_removed} duplicate rows."
-        )
-    else:
-        logger.info("No duplicate rows found.")
-        deduped_df = df.copy()
-        duplicates_removed = 0  # No duplicates found, so no rows removed
+    # 'duplicate_flag' is `False` for the first occurrence, and it is `True`
+    # for the duplicate row
+    df["duplicate_flag"] = df.duplicated(keep="first")
+    duplicates_count = df["duplicate_flag"].sum()
 
-    return deduped_df, duplicates_removed
+    end_time = int(time.time() * 1000)
+    duration = end_time - start_time
+
+    logger.info(f"Marked {duplicates_count} duplicate rows.")
+
+    # Create JSONLine entry
+    jsonline = {
+        "step_name": "Marking Duplicates",
+        "execution_start": start_time,
+        "execution_end": end_time,
+        "duration_millis": duration,
+        "errors_encountered": False,
+        "data": {
+            "total_rows": len(df),
+            "duplicates_marked": duplicates_count,
+            "example_duplicate": df[df["duplicate_flag"]].head(1).to_dict("records")[0]
+            if duplicates_count
+            else {},
+        },
+    }
+
+    # Write to JSONLines file
+    with open(output_path, "a") as f:
+        f.write(json.dumps(jsonline, cls=NumpyEncoder) + "\n")
+
+    return df
 
 
-def remove_null_values(df):
+def mark_null_values(df, output_path):
     """
-    Removes rows with null values from the DataFrame and logs the result.
+    Adds a 'null_value_flag' column to the DataFrame to indicate rows with null
+    values, and logs the process in a JSONLines file.
 
     Parameters:
-        df (pd.DataFrame): The DataFrame from which to remove nulls.
+        df (pd.DataFrame): The DataFrame in which to mark null values.
+        output_path (str): The file path to write the JSONLines output.
 
     Returns:
-        tuple: A tuple containing the non-null DataFrame and the count of
-        removed rows.
+        pd.DataFrame: The DataFrame with an added 'null_value_flag' column.
     """
-    initial_count = len(df)
-    null_counts = df.isnull().sum()
+    logger.info("Marking rows with null values.")
+    start_time = int(time.time() * 1000)
 
-    if np.any(null_counts):
-        logger.info("Null values found:")
-        logger.info(null_counts[null_counts > 0])
-        # Drop rows with any null values
-        non_null_df = df.dropna()
-        nulls_removed = initial_count - len(non_null_df)
-        logger.info(f"Dropped {nulls_removed} rows containing null values.")
-    else:
-        logger.info("No null values found.")
-        non_null_df = df.copy()
-        nulls_removed = 0
+    # Create a flag column for rows containing null values
+    df["null_value_flag"] = df.isnull().any(axis=1)
+    nulls_count = df["null_value_flag"].sum()
 
-    return non_null_df, nulls_removed
+    end_time = int(time.time() * 1000)
+    duration = end_time - start_time
+
+    logger.info(f"Marked {nulls_count} rows with null values.")
+
+    # Create JSONLine entry
+    jsonline = {
+        "step_name": "Marking Null Values",
+        "execution_start": start_time,
+        "execution_end": end_time,
+        "duration_millis": duration,
+        "errors_encountered": False,
+        "data": {
+            "total_rows": len(df),
+            "nulls_marked": nulls_count,
+            "example_null_row": df[df["null_value_flag"]].head(1).to_dict("records")[0]
+            if nulls_count
+            else {},
+        },
+    }
+
+    # Write to JSONLines file
+    with open(output_path, "a") as f:
+        f.write(json.dumps(jsonline, cls=NumpyEncoder) + "\n")
+
+    return df
+
+
+# Define a function to extract domain and flag errors
+def extract_and_flag_domains(df):
+    """
+    Extracts domains from URLs and flags rows with unsupported URL schemes.
+
+    Parameters:
+        df (pd.DataFrame): DataFrame containing the 'repourl' column with URLs.
+
+    Returns:
+        pd.DataFrame: Updated DataFrame with 'repodomain' and 'unsupported_url_flag' columns.
+    """
+
+    def get_domain(url):
+        parsed_url = urlparse(url)
+        if parsed_url.scheme in ["http", "https", "git"]:
+            return parsed_url.hostname
+        else:
+            return None
+
+    # Apply the domain extraction function
+    df["repodomain"] = df["repourl"].apply(get_domain)
+
+    # Flag rows where the domain could not be extracted
+    # (i.e., unsupported schemes)
+    df["unsupported_url_flag"] = df["repodomain"].isnull()
+
+    return df
 
 
 def filter_out_incomplete_urls(df):
@@ -277,22 +363,22 @@ if __name__ == "__main__":
         f"file and saved in {output_dir} "
     )
 
-    # Remove any trailing slashes and then strip leading/trailing spaces
-    # from 'repourl' column
-    df["repourl"] = df["repourl"].str.rstrip("/").str.strip()
+    # Strip leading '+' characters, then strip leading/trailing spaces, and
+    # remove trailing slashes
+    df["repourl"] = df["repourl"].str.lstrip("+").str.rstrip("/").str.strip()
 
-    # Removing duplicate rows
-    remove_duplicates(df)
-
-    # Removing null value if any (There is no null values in the data at this
-    # moment)
-    remove_null_values(df)
+    output_json_path = str(output_dir / "process_log.jsonl")
+    # Marking duplicate rows
+    df = mark_duplicates(df, output_json_path)
+    df = mark_null_values(df, output_json_path)
 
     # replace http with https
     df["repourl"] = df["repourl"].str.replace(r"^http\b", "https", regex=True)
 
-    # Extract the domain from the URL
-    df["repodomain"] = df["repourl"].str.extract(r"https?://(www\.)?([^/]+)")[1]
+    # Extracts domains from URLs and flags rows with unsupported URL schemes.
+    # unsupported_url_flag: A boolean flag that is True for rows where the
+    # domain extraction returned None
+    df = extract_and_flag_domains(df)
 
     # Extracting the base repo url
     df["base_repo_url"] = df["repourl"].apply(get_base_repo_url)
