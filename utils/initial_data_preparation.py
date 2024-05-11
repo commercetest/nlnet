@@ -211,31 +211,35 @@ def extract_and_flag_domains(df):
     # Flag rows where the domain could not be extracted
     # (i.e., unsupported schemes)
     df["domain_extraction_flag"] = df["repodomain"].isnull()
+    # Count problematic rows and log them
+    unsupported_count = df["domain_extraction_flag"].sum()
+
+    logger.info(f"Found {unsupported_count} rows with unsupported domains")
 
     return df
 
 
-def filter_out_incomplete_urls(df):
+def filter_out_incomplete_urls(df, output_path):
     """
-    Filters rows in a DataFrame based on the completeness of the 'repourl'
-    URLs. A URL is considered complete if it contains at least five parts,
-    including the protocol, empty segment (for '//'), domain, and at least
-    two path segments, e.g., 'https://github.com/owner/repo'. Raises
-    an error if the required column 'repourl' is missing.
+    Identifies incomplete URLs in the DataFrame by adding a new boolean column
+    `incomplete_url_flag`.A URL is considered complete if it contains at
+    least five parts, including the protocol, empty segment (for '//'),
+    domain, and at least two path segments, e.g.,
+    'https://github.com/owner/repo'. Raises an error if the required column
+    'repourl' is missing. Logs the process in a JSONLines file.
 
     Args:
         df (pd.DataFrame): DataFrame containing URLs.
+        output_path (str): The file path to write the JSONLines output.
 
     Returns:
-        pd.DataFrame: DataFrame with rows containing complete URLs.
+        pd.DataFrame: The original DataFrame with the new
+        `incomplete_url_flag` column.
 
     Raises:
         ValueError: If the 'repourl' column is missing from the DataFrame.
     """
     if "repourl" not in df.columns:
-        logger.critical(
-            "Critical: DataFrame columns are: {}".format(df.columns.tolist())
-        )
         logger.critical(
             "DataFrame does not contain 'repourl' column. Aborting operation."
         )
@@ -246,71 +250,162 @@ def filter_out_incomplete_urls(df):
         # Check if the url is not a string
         if not isinstance(url, str):
             return False
-
         # Example url: https://github.com/owner/repo
         parts = url.rstrip("/").split("/")
         return len(parts) >= 5
 
     # Identify rows with incomplete URLs using the helper function
-    incomplete_urls = df[~df["repourl"].apply(is_complete_url)]
+    df["incomplete_url_flag"] = ~df["repourl"].apply(is_complete_url)
+    incomplete_count = df["incomplete_url_flag"].sum()
+    logger.info(
+        f"Filtering Out Incomplete URLs: Found {incomplete_count} incomplete " f"URLs."
+    )
+    # Log the processing step
+    start_time = int(time.time() * 1000)
+    incomplete_count = df["incomplete_url_flag"].sum()
+    end_time = int(time.time() * 1000)
 
-    # Log the incomplete URLs
-    if not incomplete_urls.empty:
-        logger.warning(
-            f"{len(incomplete_urls)} incomplete GitHub URLs found and will not "
-            f"be analysed:"
-        )
-        for url in incomplete_urls["repourl"]:
-            logger.info(f"Excluding the repourl: {url}")
-
-    # Filter out incomplete URLs using the helper function
-    filtered_df = df[df["repourl"].apply(is_complete_url)]
-    return filtered_df
-
-
-def get_base_repo_url(url):
-    """
-    Extracts the base repository URL from various hosting platforms.
-    Handles URLs ending with '.git', supports nested groups in GitLab,
-    and adapts to different platform URL structures.
-
-    Args:
-      url (str): The full URL to a Git repository.
-
-    Returns:
-      str: The base repository URL if valid, otherwise returns None.
-    """
-    # Return None immediately if the URL is None or empty
-    if not url:
-        return None
-
-    parsed_url = urlparse(url)
-    path = parsed_url.path.strip("/")
-
-    parts = path.split("/")
-
-    # Define platforms that use the complete path without slicing
-    direct_path_platforms = {
-        "gitlab.com",
-        "gitlab.torproject.org",
-        "codeberg.org",
-        "framagit.org",
-        "hydrillabugs.koszko.org",
-        "git.replicant.us",
-        "gerrit.osmocom.org",
-        "git.taler.net",
+    jsonline = {
+        "step_name": "Filter Incomplete URLs",
+        "execution_start": start_time,
+        "execution_end": end_time,
+        "duration_millis": end_time - start_time,
+        "errors_encountered": incomplete_count > 0,
+        "data": {"total_urls_processed": len(df), "incomplete_urls": incomplete_count},
     }
 
-    # Determine the base path based on the hosting platform
-    if any(host in parsed_url.netloc for host in direct_path_platforms):
-        base_path = "/".join(parts)
-    elif len(parts) < 2:
-        # Check if the URL lacks specific repository details(owner/reponame)
-        return None
-    else:
-        base_path = "/".join(parts[:2])  # Default handling for GitHub-like URLs
+    # Write to JSONLines file
+    with open(output_path, "a") as f:
+        f.write(json.dumps(jsonline, cls=NumpyEncoder) + "\n")
 
-    return f"{parsed_url.scheme}://{parsed_url.netloc}/{base_path}"
+    return df
+
+
+def get_base_repo_url(df, output_path):
+    """
+    Extracts the base repository URL from various hosting platforms and logs
+    the process. Adds a 'base_repo_url_flag' column to indicate success or
+    failure of extraction.
+
+    Args:
+       df (pd.DataFrame): DataFrame containing URLs.
+       output_path (str): The file path to write the JSONLines output.
+
+    Returns:
+      pd.DataFrame: The updated DataFrame with 'base_repo_url' and
+      'base_repo_url_flag' columns.
+    """
+
+    # Return None immediately if the URL is None or empty
+    def extract_url(url):
+        if not url:
+            return None, True
+
+        parsed_url = urlparse(url)
+        path = parsed_url.path.strip("/")
+
+        parts = path.split("/")
+
+        # Define platforms that use the complete path without slicing
+        direct_path_platforms = {
+            "gitlab.com",
+            "gitlab.torproject.org",
+            "codeberg.org",
+            "framagit.org",
+            "hydrillabugs.koszko.org",
+            "git.replicant.us",
+            "gerrit.osmocom.org",
+            "git.taler.net",
+        }
+
+        # Determine the base path based on the hosting platform
+        if any(host in parsed_url.netloc for host in direct_path_platforms):
+            base_path = "/".join(parts)
+        elif len(parts) < 2:
+            # Check if the URL lacks specific repository details(owner/reponame)
+            return None, True  # URL lacks sufficient parts
+        else:
+            base_path = "/".join(parts[:2])  # Default handling for GitHub-like
+            # URLs
+
+        return f"{parsed_url.scheme}://{parsed_url.netloc}/{base_path}", False
+
+    # Apply the function to extract URL and flag
+    result = df["repourl"].apply(lambda x: extract_url(x))
+    df["base_repo_url"] = result.apply(lambda x: x[0])
+    df["base_repo_url_flag"] = result.apply(lambda x: x[1])
+
+    flagged_count = df["base_repo_url_flag"].sum()
+    logger.info(
+        f"Getting Base Repo URL: Found {flagged_count} rows with URL "
+        f"extraction "
+        f"issues."
+    )
+
+    # Log the operation
+    start_time = int(time.time() * 1000)
+    flagged_count = df["base_repo_url_flag"].sum()
+    end_time = int(time.time() * 1000)
+
+    jsonline = {
+        "step_name": "Extract Base Repo URL",
+        "execution_start": start_time,
+        "execution_end": end_time,
+        "duration_millis": end_time - start_time,
+        "errors_encountered": flagged_count > 0,
+        "data": {
+            "total_urls_processed": len(df),
+            "urls_flagged_as_incomplete": flagged_count,
+        },
+    }
+
+    # Write to JSONLines file
+    with open(output_path, "a") as f:
+        f.write(json.dumps(jsonline, cls=NumpyEncoder) + "\n")
+
+    return df
+
+
+def add_explanations(df):
+    """
+    Adds an 'explanation' column to the DataFrame, which contains detailed
+    descriptions of any flags or conditions that affect each row.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing the data and flags.
+
+    Returns:
+        pd.DataFrame: The updated DataFrame with an 'explanation' column added.
+    """
+
+    def get_explanation(row):
+        explanations = []
+        if row.get("duplicate_flag", False):
+            explanations.append("Row is marked as a duplicate of another entry.")
+        if row.get("null_value_flag", False):
+            explanations.append("Row contains null values.")
+        if row.get("base_repo_url_flag", False):
+            explanations.append("Unable to extract base repository URL.")
+        if row.get("incomplete_url_flag", False):
+            url_parts = row["repourl"].rstrip("/").split("/")
+            if len(url_parts) < 5:
+                missing_parts = 5 - len(url_parts)
+                explanations.append(
+                    f"URL is incomplete; missing {missing_parts}"
+                    f" parts (expects protocol, domain, and "
+                    f"path)."
+                )
+        if row.get("domain_extraction_flag", False):
+            explanations.append(
+                "Domain could not be extracted due to " "unsupported or malformed URL."
+            )
+
+        return " | ".join(explanations) if explanations else "No issues detected."
+
+    # Apply the get_explanation function to each row
+    df["explanation"] = df.apply(get_explanation, axis=1)
+
+    return df
 
 
 if __name__ == "__main__":
@@ -380,16 +475,15 @@ if __name__ == "__main__":
     # domain extraction returned None
     df = extract_and_flag_domains(df)
 
+    # Identifies incomplete URLs in the DataFrame by adding a new boolean column
+    # `incomplete_url_flag`.
+    df = filter_out_incomplete_urls(df, output_json_path)
+
     # Extracting the base repo url
-    df["base_repo_url"] = df["repourl"].apply(get_base_repo_url)
+    df = get_base_repo_url(df, output_json_path)
 
-    filter_out_incomplete_urls(df)
-
-    # Remove any rows with invalid URLs
-    df = df[df["base_repo_url"].notna()]
-
-    # Remove any rows with invalid repodomain
-    df = df[df["repodomain"].notna()]
+    # Adding an explanation column
+    df = add_explanations(df)
 
     # Save the dataframe as a CSV file
     df.to_csv(output_dir / "original_massive_df.csv", index=False)
