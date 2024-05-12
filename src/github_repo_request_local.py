@@ -479,7 +479,7 @@ if __name__ == "__main__":
     error_log_file.close()
 
     # Log the summary statistics to the JSONLines file
-    log_summary_statistics(df, str(repo_root / "process_log.jsonl"))
+    log_summary_statistics(df, str(repo_root / "data" / "process_log.jsonl"))
 
     # Example final logging message
     logger.info("Script execution completed. Data has been saved and summary logged.")
