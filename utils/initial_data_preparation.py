@@ -254,14 +254,15 @@ def filter_out_incomplete_urls(df, output_path):
         parts = url.rstrip("/").split("/")
         return len(parts) >= 5
 
+    # Log the processing step
+    start_time = int(time.time() * 1000)
     # Identify rows with incomplete URLs using the helper function
     df["incomplete_url_flag"] = ~df["repourl"].apply(is_complete_url)
     incomplete_count = df["incomplete_url_flag"].sum()
     logger.info(
         f"Filtering Out Incomplete URLs: Found {incomplete_count} incomplete " f"URLs."
     )
-    # Log the processing step
-    start_time = int(time.time() * 1000)
+
     incomplete_count = df["incomplete_url_flag"].sum()
     end_time = int(time.time() * 1000)
 
@@ -330,6 +331,8 @@ def get_base_repo_url(df, output_path):
 
         return f"{parsed_url.scheme}://{parsed_url.netloc}/{base_path}", False
 
+    # Log the operation
+    start_time = int(time.time() * 1000)
     # Apply the function to extract URL and flag
     result = df["repourl"].apply(lambda x: extract_url(x))
     df["base_repo_url"] = result.apply(lambda x: x[0])
@@ -342,8 +345,6 @@ def get_base_repo_url(df, output_path):
         f"issues."
     )
 
-    # Log the operation
-    start_time = int(time.time() * 1000)
     flagged_count = df["base_repo_url_flag"].sum()
     end_time = int(time.time() * 1000)
 
