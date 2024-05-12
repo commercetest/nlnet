@@ -366,48 +366,6 @@ def get_base_repo_url(df, output_path):
     return df
 
 
-def add_explanations(df):
-    """
-    Adds an 'explanation' column to the DataFrame, which contains detailed
-    descriptions of any flags or conditions that affect each row.
-
-    Args:
-        df (pd.DataFrame): The DataFrame containing the data and flags.
-
-    Returns:
-        pd.DataFrame: The updated DataFrame with an 'explanation' column added.
-    """
-
-    def get_explanation(row):
-        explanations = []
-        if row.get("duplicate_flag", False):
-            explanations.append("Row is marked as a duplicate of another entry.")
-        if row.get("null_value_flag", False):
-            explanations.append("Row contains null values.")
-        if row.get("base_repo_url_flag", False):
-            explanations.append("Unable to extract base repository URL.")
-        if row.get("incomplete_url_flag", False):
-            url_parts = row["repourl"].rstrip("/").split("/")
-            if len(url_parts) < 5:
-                missing_parts = 5 - len(url_parts)
-                explanations.append(
-                    f"URL is incomplete; missing {missing_parts}"
-                    f" parts (expects protocol, domain, and "
-                    f"path)."
-                )
-        if row.get("domain_extraction_flag", False):
-            explanations.append(
-                "Domain could not be extracted due to " "unsupported or malformed URL."
-            )
-
-        return " | ".join(explanations) if explanations else "No issues detected."
-
-    # Apply the get_explanation function to each row
-    df["explanation"] = df.apply(get_explanation, axis=1)
-
-    return df
-
-
 if __name__ == "__main__":
     args = parse_args()
 
@@ -481,9 +439,6 @@ if __name__ == "__main__":
 
     # Extracting the base repo url
     df = get_base_repo_url(df, output_json_path)
-
-    # Adding an explanation column
-    df = add_explanations(df)
 
     # Save the dataframe as a CSV file
     df.to_csv(output_dir / "original_massive_df.csv", index=False)
