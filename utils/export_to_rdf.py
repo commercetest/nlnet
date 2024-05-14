@@ -23,15 +23,15 @@ REQUIRED_COLUMNS = [
 
 def dataframe_to_ttl(df):
     """
-    Converts a pandas DataFrame to TTL RDF format, including additional
+    Converts a pandas DataFrame to Turtle (TTL) RDF format, including additional
     repository details, and logs issues encountered when processing each row.
 
-     Args:
-       df: A pandas DataFrame with relevant columns.
-
-    Returns:
-       A list of strings, each representing the TTL RDF representation of
-       a row.
+    The function processes each row in the DataFrame to generate RDF triples,
+    which are serialised in Turtle format. The DataFrame must include specific
+    columns listed in the REQUIRED_COLUMNS variable. If any required columns
+    are missing, the function raises a ValueError. For each valid row, the
+    function constructs an RDF graph, converts it to Turtle format, and appends
+    the result to a list. Rows with errors are logged and skipped.
     """
     # Validate the presence of required columns
     missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
@@ -50,11 +50,9 @@ def dataframe_to_ttl(df):
             # Create triples for all fields
             for column in REQUIRED_COLUMNS:
                 value = row.get(column)
-                if value is not None and value != -1:  # Check for valid values,
-                    # ignoring placeholder like -1
-                    predicate = project_namespace[
-                        column
-                    ]  # Using column name as predicate
+                if value is not None and value != -1:  # Check for valid values
+                    # Using column name as predicate
+                    predicate = project_namespace[column]
                     if isinstance(value, str) and value.startswith("http"):
                         graph.add(
                             (subject_uri, predicate, URIRef(value))
