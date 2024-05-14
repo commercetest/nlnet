@@ -3,12 +3,8 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-import time
-import json
-from json import JSONEncoder
 
 import pandas as pd
-import numpy as np
 from loguru import logger
 
 from utils.git_utils import get_working_directory_or_git_root
@@ -66,21 +62,6 @@ last commit hashes.
   filenames.
 - --ttl-file: Path to save the Turtle (TTL) format file.
 """
-
-
-class NumpyEncoder(JSONEncoder):
-    """Custom encoder for numpy data types."""
-
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, np.bool_):
-            return bool(obj)
-        return JSONEncoder.default(self, obj)
 
 
 def parse_args():
@@ -184,42 +165,6 @@ def get_last_commit_hash(repo_dir: Path):
         return None  # Return None to indicate failure
 
 
-def log_summary_statistics(df, output_path):
-    """
-    Logs summary statistics about the DataFrame processing, particularly focusing on
-    cloning results and test file counts.
-
-    Args:
-        df (pd.DataFrame): DataFrame containing all the repository data.
-        output_path (str): Path to the JSONLines log file.
-    """
-    # Calculate the required statistics
-    not_cloned_count = (df["clone_status"] != "successful").sum()
-    valid_test_files_count = (df["testfilecountlocal"] != -1).sum()
-
-    # Prepare the summary log entry
-    summary_stats = {
-        "step_name": "Summary Statistics",
-        "execution_start": int(time.time() * 1000),
-        "execution_end": int(time.time() * 1000),
-        "data": {
-            "total_repos_processed": len(df),
-            "repos_not_cloned": not_cloned_count,
-            "repos_with_valid_test_file_counts": valid_test_files_count,
-        },
-    }
-
-    # Write to the JSONLines file
-    with open(output_path, "a") as file:
-        file.write(json.dumps(summary_stats, cls=NumpyEncoder) + "\n")
-
-    logger.info(
-        f"Summary statistics logged: {not_cloned_count} repositories "
-        f"were not cloned, and {valid_test_files_count} repositories "
-        f"have valid test file counts."
-    )
-
-
 def add_explanations(df):
     """
     Adds an 'explanation' column to the DataFrame, which contains detailed
@@ -251,7 +196,7 @@ def add_explanations(df):
                 )
         if row.get("domain_extraction_flag", False):
             explanations.append(
-                "Domain could not be extracted due to " "unsupported or malformed URL."
+                "Domain could not be extracted due to unsupported or malformed " "URL."
             )
         if row.get("testfilecountlocal", -1) == -1:
             explanations.append("Test files could not be counted.")
@@ -478,8 +423,5 @@ if __name__ == "__main__":
 
     error_log_file.close()
 
-    # Log the summary statistics to the JSONLines file
-    log_summary_statistics(df, str(repo_root / "data" / "process_log.jsonl"))
-
-    # Example final logging message
-    logger.info("Script execution completed. Data has been saved and summary logged.")
+    # Final logging message
+    logger.info("Script execution completed.")
