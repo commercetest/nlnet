@@ -3,6 +3,8 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+import os
+import re
 
 import pandas as pd
 from loguru import logger
@@ -62,6 +64,25 @@ last commit hashes.
   filenames.
 - --ttl-file: Path to save the Turtle (TTL) format file.
 """
+
+# Define test runners dictionary globally
+test_runners = {
+    "JUnit": {
+        "dependency_patterns": ["org.junit.jupiter:junit-jupiter", "junit:junit"],
+        "config_files": ["pom.xml", "build.gradle"],
+        "file_patterns": [".*Test.java"],
+    },
+    "pytest": {
+        "dependency_patterns": [],
+        "config_files": ["pytest.ini", "tox.ini", "pyproject.toml"],
+        "file_patterns": ["test_.*.py", ".*_test.py"],
+    },
+    "Mocha": {
+        "dependency_patterns": ["mocha"],
+        "config_files": ["package.json", ".mocharc.json", ".mocharc.js"],
+        "file_patterns": ["test/.*.js"],
+    },
+}
 
 
 def parse_args():
@@ -135,6 +156,45 @@ def list_test_files(directory, excluded_extensions):
     return test_files
 
 
+def detect_test_runners(repo_path):
+    runner_presence = {runner: 0 for runner in test_runners}  # Initialise
+    # detection dictionary
+
+    # Search through files and directories
+    for root, dirs, files in os.walk(repo_path):
+        for runner, indicators in test_runners.items():
+            # Check for configuration files and patterns
+            for config_file in indicators["config_files"]:
+                if config_file in files:
+                    runner_presence[runner] += 1  # Increment if config file is
+                    # found
+
+            # Check for file patterns
+            for pattern in indicators["file_patterns"]:
+                matching_files = [file for file in files if re.match(pattern, file)]
+                runner_presence[runner] += len(
+                    matching_files
+                )  # Increment by number of matching test
+                # files
+
+            # Check for dependencies (if applicable)
+            for dep_pattern in indicators["dependency_patterns"]:
+                for file in files:
+                    path = os.path.join(root, file)
+                    if (
+                        os.path.exists(path) and file in indicators["config_files"]
+                    ):  # Ensure dependency checks in config
+                        # files
+                        with open(path, "r") as file_content:
+                            content = file_content.read()
+                            if dep_pattern in content:
+                                runner_presence[runner] += (
+                                    1  # Increment if dependency is
+                                )
+                                # found
+    return runner_presence
+
+
 def get_last_commit_hash(repo_dir: Path):
     """
     Fetches the hash of the last commit of the Git repository located in
@@ -163,6 +223,67 @@ def get_last_commit_hash(repo_dir: Path):
             f"Failed to fetch last commit hash for {repo_dir}. " f"Exception: {e}"
         )
         return None  # Return None to indicate failure
+
+
+def add_explanations(df):
+    """
+    Adds an 'explanation' column to the DataFrame, which contains detailed
+    descriptions of any flags or conditions that affect each row.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing the data and flags.
+
+    Returns:
+        pd.DataFrame: The updated DataFrame with an 'explanation' column added.
+    """
+
+    def get_explanation(row):
+        explanations = []
+        if row.get("duplicate_flag", False):
+            explanations.append("Row is marked as a duplicate of another entry.")
+        if row.get("null_value_flag", False):
+            explanations.append("Row contains null values.")
+        if row.get("base_repo_url_flag", False):
+            explanations.append("Unable to extract base repository URL.")
+        if row.get("incomplete_url_flag", False):
+            url_parts = row["repourl"].rstrip("/").split("/")
+            if len(url_parts) < 5:
+                missing_parts = 5 - len(url_parts)
+                explanations.append(
+                    f"URL is incomplete; missing {missing_parts}"
+                    f" parts (expects protocol, domain, and "
+                    f"path)."
+                )
+        if row.get("domain_extraction_flag", False):
+            explanations.append(
+                "Domain could not be extracted due to unsupported or malformed " "URL."
+            )
+        if row.get("testfilecountlocal", -1) == -1:
+            explanations.append("Test files could not be counted.")
+        clone_status = row.get("clone_status", None)
+        if clone_status == "failed":
+            explanations.append("Repository clone failed.")
+        elif clone_status is None:
+            explanations.append("Clone status unknown.")
+
+        last_commit_hash = row.get("last_commit_hash", None)
+        if pd.isna(last_commit_hash) or not last_commit_hash:
+            explanations.append(
+                "Last commit hash is missing or could not be retrieved."
+            )
+
+        test_runners_info = row.get("test_runners")
+        if test_runners_info:
+            explanations.append(f"Detected test runners: {test_runners_info}")
+        else:
+            explanations.append("No test runners detected.")
+
+        return " | ".join(explanations) if explanations else "No issues detected."
+
+    # Apply the get_explanation function to each row
+    df["explanation"] = df.apply(get_explanation, axis=1)
+
+    return df
 
 
 if __name__ == "__main__":
@@ -198,6 +319,12 @@ if __name__ == "__main__":
             df = pd.read_csv(csv_file_path)
             df["testfilecountlocal"] = -1  # Initialise if first run
             df["clone_status"] = None  # Initialise the clone status column
+            df["test_runners"] = None
+            df["test_runners"] = None
+            logger.info(
+                'Columns "testfilecountlocal", "clone_status",'
+                ' "test_runners" initialised.'
+            )
         else:
             logger.error(
                 f"The input file has not been found at {csv_file_path}. Exiting..."
@@ -225,8 +352,14 @@ if __name__ == "__main__":
         for index, row in df.iterrows():
             # Check if we need to skip this repository because it's fully
             # processed
-            if row["testfilecountlocal"] != -1 and pd.notna(row["last_commit_hash"]):
+            if (
+                row["testfilecountlocal"] != -1
+                and pd.notna(row["last_commit_hash"])
+                and pd.notna(row["test_runners"])
+            ):
                 continue
+            if row["base_repo_url_flag"] is True:
+                continue  # Skip this iteration and move to the next row
 
             repo_url = row["repourl"]
             if not repo_url or repo_url is None:
@@ -312,6 +445,24 @@ if __name__ == "__main__":
                     f" has been written to '{test_file_list_path}'"
                 )
 
+            # Detecting test runners
+            if (
+                row["test_runners"] is None
+                and df.at[index, "clone_status"] == "successful"
+            ):
+                logger.info(f"Detecting test runners for the repo {repo_name}")
+                # Call to detect test runners
+                runner_presence = detect_test_runners(clone_dir)
+                # Formatting the result to store in the DataFrame
+                runner_info = ", ".join(
+                    f"{runner}: {count}"
+                    for runner, count in runner_presence.items()
+                    if count > 0
+                )
+                df.at[index, "test_runners"] = (
+                    runner_info if runner_info else "None detected"
+                )
+
             processed_count += 1
 
             # Processed count increment and batch check
@@ -341,6 +492,12 @@ if __name__ == "__main__":
 
     logger.info("All repositories processed. DataFrame saved.")
 
+    # Adding an explanation column
+    logger.info("Adding an explanation column to the dataframe")
+    df = add_explanations(df)
+    df.to_csv(updated_csv_path, index=False)
+    logger.info(f"DataFrame saved in {updated_csv_path}.")
+
     # Exporting the result to an RDF format
 
     # Use the path from the arguments to save the TTL file or saving the file
@@ -359,3 +516,6 @@ if __name__ == "__main__":
             )  # Optionally add a newline between each entry for better readability
 
     error_log_file.close()
+
+    # Final logging message
+    logger.info("Script execution completed.")
