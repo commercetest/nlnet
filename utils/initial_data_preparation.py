@@ -156,7 +156,6 @@ def filter_out_incomplete_urls(df):
 
     Args:
         df (pd.DataFrame): DataFrame containing URLs.
-        output_path (str): The file path to write the JSONLines output.
 
     Returns:
         pd.DataFrame: The original DataFrame with the new
@@ -200,7 +199,6 @@ def get_base_repo_url(df):
 
     Args:
        df (pd.DataFrame): DataFrame containing URLs.
-       output_path (str): The file path to write the JSONLines output.
 
     Returns:
       pd.DataFrame: The updated DataFrame with 'base_repo_url' and
