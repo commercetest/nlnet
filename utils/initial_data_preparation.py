@@ -34,7 +34,6 @@ To specify custom paths:
 """
 
 import pandas as pd
-import numpy as np
 import argparse
 from pathlib import Path
 from loguru import logger
@@ -42,29 +41,6 @@ from utils.git_utils import get_working_directory_or_git_root
 from utils.string_utils import sanitise_directory_name
 import os
 from urllib.parse import urlparse
-import json
-from json import JSONEncoder
-import time
-
-
-class NumpyEncoder(JSONEncoder):
-    """Custom encoder for numpy data types."""
-
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, np.bool_):
-            return bool(obj)
-        return JSONEncoder.default(self, obj)
-
-
-# Define a custom error class
-class UnsupportedURLError(ValueError):
-    pass
 
 
 def parse_args():
@@ -91,97 +67,47 @@ def parse_args():
     return parser.parse_args()
 
 
-def mark_duplicates(df, output_path):
+def mark_duplicates(df):
     """
-    Adds a 'duplicate_flag' column to the DataFrame to indicate duplicate rows,
-    and logs the process in a JSONLines file.
+    Adds a 'duplicate_flag' column to the DataFrame to indicate duplicate rows.
 
     Parameters:
         df (pd.DataFrame): The DataFrame in which to mark duplicates.
-        output_path (str): The file path to write the JSONLines output.
 
     Returns:
         pd.DataFrame: The DataFrame with an added 'duplicate_flag' column.
     """
+
     logger.info("Marking duplicate rows.")
-    start_time = int(time.time() * 1000)
 
     # 'duplicate_flag' is `False` for the first occurrence, and it is `True`
     # for the duplicate row
     df["duplicate_flag"] = df.duplicated(keep="first")
     duplicates_count = df["duplicate_flag"].sum()
 
-    end_time = int(time.time() * 1000)
-    duration = end_time - start_time
-
     logger.info(f"Marked {duplicates_count} duplicate rows.")
-
-    # Create JSONLine entry
-    jsonline = {
-        "step_name": "Marking Duplicates",
-        "execution_start": start_time,
-        "execution_end": end_time,
-        "duration_millis": duration,
-        "errors_encountered": False,
-        "data": {
-            "total_rows": len(df),
-            "duplicates_marked": duplicates_count,
-            "example_duplicate": df[df["duplicate_flag"]].head(1).to_dict("records")[0]
-            if duplicates_count
-            else {},
-        },
-    }
-
-    # Write to JSONLines file
-    with open(output_path, "a") as f:
-        f.write(json.dumps(jsonline, cls=NumpyEncoder) + "\n")
 
     return df
 
 
-def mark_null_values(df, output_path):
+def mark_null_values(d):
     """
     Adds a 'null_value_flag' column to the DataFrame to indicate rows with null
-    values, and logs the process in a JSONLines file.
+    values.
 
     Parameters:
         df (pd.DataFrame): The DataFrame in which to mark null values.
-        output_path (str): The file path to write the JSONLines output.
 
     Returns:
         pd.DataFrame: The DataFrame with an added 'null_value_flag' column.
     """
     logger.info("Marking rows with null values.")
-    start_time = int(time.time() * 1000)
 
     # Create a flag column for rows containing null values
     df["null_value_flag"] = df.isnull().any(axis=1)
     nulls_count = df["null_value_flag"].sum()
 
-    end_time = int(time.time() * 1000)
-    duration = end_time - start_time
-
     logger.info(f"Marked {nulls_count} rows with null values.")
-
-    # Create JSONLine entry
-    jsonline = {
-        "step_name": "Marking Null Values",
-        "execution_start": start_time,
-        "execution_end": end_time,
-        "duration_millis": duration,
-        "errors_encountered": False,
-        "data": {
-            "total_rows": len(df),
-            "nulls_marked": nulls_count,
-            "example_null_row": df[df["null_value_flag"]].head(1).to_dict("records")[0]
-            if nulls_count
-            else {},
-        },
-    }
-
-    # Write to JSONLines file
-    with open(output_path, "a") as f:
-        f.write(json.dumps(jsonline, cls=NumpyEncoder) + "\n")
 
     return df
 
@@ -219,7 +145,7 @@ def extract_and_flag_domains(df):
     return df
 
 
-def filter_out_incomplete_urls(df, output_path):
+def filter_out_incomplete_urls(df):
     """
     Identifies incomplete URLs in the DataFrame by adding a new boolean column
     `incomplete_url_flag`.A URL is considered complete if it contains at
@@ -254,8 +180,6 @@ def filter_out_incomplete_urls(df, output_path):
         parts = url.rstrip("/").split("/")
         return len(parts) >= 5
 
-    # Log the processing step
-    start_time = int(time.time() * 1000)
     # Identify rows with incomplete URLs using the helper function
     df["incomplete_url_flag"] = ~df["repourl"].apply(is_complete_url)
     incomplete_count = df["incomplete_url_flag"].sum()
@@ -264,25 +188,11 @@ def filter_out_incomplete_urls(df, output_path):
     )
 
     incomplete_count = df["incomplete_url_flag"].sum()
-    end_time = int(time.time() * 1000)
-
-    jsonline = {
-        "step_name": "Filter Incomplete URLs",
-        "execution_start": start_time,
-        "execution_end": end_time,
-        "duration_millis": end_time - start_time,
-        "errors_encountered": incomplete_count > 0,
-        "data": {"total_urls_processed": len(df), "incomplete_urls": incomplete_count},
-    }
-
-    # Write to JSONLines file
-    with open(output_path, "a") as f:
-        f.write(json.dumps(jsonline, cls=NumpyEncoder) + "\n")
 
     return df
 
 
-def get_base_repo_url(df, output_path):
+def get_base_repo_url(df):
     """
     Extracts the base repository URL from various hosting platforms and logs
     the process. Adds a 'base_repo_url_flag' column to indicate success or
@@ -331,8 +241,6 @@ def get_base_repo_url(df, output_path):
 
         return f"{parsed_url.scheme}://{parsed_url.netloc}/{base_path}", False
 
-    # Log the operation
-    start_time = int(time.time() * 1000)
     # Apply the function to extract URL and flag
     result = df["repourl"].apply(lambda x: extract_url(x))
     df["base_repo_url"] = result.apply(lambda x: x[0])
@@ -341,28 +249,8 @@ def get_base_repo_url(df, output_path):
     flagged_count = df["base_repo_url_flag"].sum()
     logger.info(
         f"Getting Base Repo URL: Found {flagged_count} rows with URL "
-        f"extraction "
-        f"issues."
+        f"extraction issues."
     )
-
-    flagged_count = df["base_repo_url_flag"].sum()
-    end_time = int(time.time() * 1000)
-
-    jsonline = {
-        "step_name": "Extract Base Repo URL",
-        "execution_start": start_time,
-        "execution_end": end_time,
-        "duration_millis": end_time - start_time,
-        "errors_encountered": flagged_count > 0,
-        "data": {
-            "total_urls_processed": len(df),
-            "urls_flagged_as_incomplete": flagged_count,
-        },
-    }
-
-    # Write to JSONLines file
-    with open(output_path, "a") as f:
-        f.write(json.dumps(jsonline, cls=NumpyEncoder) + "\n")
 
     return df
 
@@ -417,14 +305,13 @@ if __name__ == "__main__":
         f"file and saved in {output_dir} "
     )
 
-    # Strip leading '+' characters, then strip leading/trailing spaces, and
-    # remove trailing slashes
+    # Strip leading '+' characters, then remove trailing slashes, and strip
+    # leading / trailing spaces,
     df["repourl"] = df["repourl"].str.lstrip("+").str.rstrip("/").str.strip()
 
-    output_json_path = str(output_dir / "process_log.jsonl")
-    # Marking duplicate rows
-    df = mark_duplicates(df, output_json_path)
-    df = mark_null_values(df, output_json_path)
+    # Marking duplicate rows and Null values
+    df = mark_duplicates(df)
+    df = mark_null_values(df)
 
     # replace http with https
     df["repourl"] = df["repourl"].str.replace(r"^http\b", "https", regex=True)
@@ -436,10 +323,10 @@ if __name__ == "__main__":
 
     # Identifies incomplete URLs in the DataFrame by adding a new boolean column
     # `incomplete_url_flag`.
-    df = filter_out_incomplete_urls(df, output_json_path)
+    df = filter_out_incomplete_urls(df)
 
     # Extracting the base repo url
-    df = get_base_repo_url(df, output_json_path)
+    df = get_base_repo_url(df)
 
     # Save the dataframe as a CSV file
     df.to_csv(output_dir / "original_massive_df.csv", index=False)
