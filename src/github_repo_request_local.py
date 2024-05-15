@@ -63,6 +63,8 @@ last commit hashes.
 - --ttl-file: Path to save the Turtle (TTL) format file.
 """
 
+EXPECTED_URL_PARTS = 5
+
 
 def parse_args():
     """Parse command line arguments for excluded extensions and clone
@@ -179,22 +181,22 @@ def add_explanations(df):
 
     def get_explanation(row):
         explanations = []
-        if row.get("duplicate_flag", False):
+        if row.get("duplicate_flag", default=False):
             explanations.append("Row is marked as a duplicate of another entry.")
-        if row.get("null_value_flag", False):
+        if row.get("null_value_flag", default=False):
             explanations.append("Row contains null values.")
-        if row.get("base_repo_url_flag", False):
+        if row.get("base_repo_url_flag", default=False):
             explanations.append("Unable to extract base repository URL.")
-        if row.get("incomplete_url_flag", False):
+        if row.get("incomplete_url_flag", default=False):
             url_parts = row["repourl"].rstrip("/").split("/")
-            if len(url_parts) < 5:
-                missing_parts = 5 - len(url_parts)
+            if len(url_parts) < EXPECTED_URL_PARTS:
+                missing_parts = EXPECTED_URL_PARTS - len(url_parts)
                 explanations.append(
                     f"URL is incomplete; missing {missing_parts}"
                     f" parts (expects protocol, domain, and "
                     f"path)."
                 )
-        if row.get("domain_extraction_flag", False):
+        if row.get("domain_extraction_flag", default=False):
             explanations.append(
                 "Domain could not be extracted due to unsupported or malformed " "URL."
             )
