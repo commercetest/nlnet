@@ -4,17 +4,25 @@ from loguru import logger
 
 # List of required columns
 REQUIRED_COLUMNS = [
+    # Unique project reference identifier.
     "projectref",
+    # NLnet project page URL.
     "nlnetpage",
+    # Repository URL extracted from the project page.
     "repourl",
     "duplicate_flag",
     "null_value_flag",
+    # Extracted domain from the repository URL.
     "repodomain",
+    # Flag indicating unsupported URL schemes
     "domain_extraction_flag",
     "incomplete_url_flag",
+    # Base repository URL extracted from various hosting platforms.
     "base_repo_url",
+    # Flag indicating success or failure of base repository URL extraction.
     "base_repo_url_flag",
     "testfilecountlocal",
+    # Indicate the success/failure of repository cloning attempt
     "clone_status",
     "last_commit_hash",
     "explanation",
