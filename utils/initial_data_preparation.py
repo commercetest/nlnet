@@ -19,10 +19,20 @@ domains. Additionally, it outputs the count of repositories for each domain
 into a text file for easy reference and further analysis.
 - **Command Line Flexibility**: Supports command-line arguments that allow users
 to specify custom paths for the input TSV file and the output directory.
+
 Command Line Arguments:
 - --input-file: Specifies the path to the input TSV file.
 - --output-folder: Specifies the directory where output CSV files and other
   results will be saved. Defaults to 'data/'.
+
+Functions:
+- parse_args(): Parses command-line arguments to customise input and output paths.
+- mark_duplicates(df): Marks duplicate rows in the DataFrame.
+- mark_null_values(df): Marks rows with null values in the DataFrame.
+- extract_and_flag_domains(df): Extracts domains from URLs and flags rows with unsupported URL schemes.
+- filter_out_incomplete_urls(df): Identifies incomplete URLs in the DataFrame.
+- get_base_repo_url(df): Extracts the base repository URL from various hosting platforms.
+
 
 Usage:
 To run the script with default paths:
