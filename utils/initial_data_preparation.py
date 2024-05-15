@@ -52,6 +52,9 @@ from utils.string_utils import sanitise_directory_name
 import os
 from urllib.parse import urlparse
 
+# Constants for URL validation
+EXPECTED_URL_PARTS = 5
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -186,8 +189,8 @@ def filter_out_incomplete_urls(df):
         if not isinstance(url, str):
             return False
         # Example url: https://github.com/owner/repo
-        parts = url.rstrip("/").split("/")
-        return len(parts) >= 5
+        parts = url.split("/")
+        return len(parts) >= EXPECTED_URL_PARTS
 
     # Identify rows with incomplete URLs using the helper function
     df["incomplete_url_flag"] = ~df["repourl"].apply(is_complete_url)
@@ -221,7 +224,7 @@ def get_base_repo_url(df):
             return None, True
 
         parsed_url = urlparse(url)
-        path = parsed_url.path.strip("/")
+        path = parsed_url.path
 
         parts = path.split("/")
 
