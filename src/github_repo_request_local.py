@@ -2,6 +2,7 @@ import argparse
 import shutil
 import subprocess
 import sys
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -284,7 +285,8 @@ if __name__ == "__main__":
             if row["testfilecountlocal"] != -1 and pd.notna(row["last_commit_hash"]):
                 continue
             if row["base_repo_url_flag"] is True:
-                continue  # Skip this iteration and move to the next row
+                continue  # Skip this iteration and move to the next row as the
+                # URL lacks specific repository details(owner/reponame)
 
             repo_url = row["repourl"]
             if not repo_url or repo_url is None:
@@ -425,4 +427,5 @@ if __name__ == "__main__":
     error_log_file.close()
 
     # Final logging message
-    logger.info("Script execution completed.")
+    script_name = os.path.basename(__file__)
+    logger.info(f"Script {script_name} execution completed.")
