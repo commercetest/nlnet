@@ -185,8 +185,10 @@ def add_explanations(df):
             explanations.append("Row is marked as a duplicate of another entry.")
         if row.get("null_value_flag", default=False):
             explanations.append("Row contains null values.")
-        if row.get("base_repo_url_flag", default=False):
-            explanations.append("Unable to extract base repository URL.")
+        if row.get("domain_extraction_flag", default=False):
+            explanations.append(
+                "Domain could not be extracted due to unsupported or malformed " "URL."
+            )
         if row.get("incomplete_url_flag", default=False):
             url_parts = row["repourl"].rstrip("/").split("/")
             if len(url_parts) < EXPECTED_URL_PARTS:
@@ -196,18 +198,15 @@ def add_explanations(df):
                     f" parts (expects protocol, domain, and "
                     f"path)."
                 )
-        if row.get("domain_extraction_flag", default=False):
-            explanations.append(
-                "Domain could not be extracted due to unsupported or malformed " "URL."
-            )
-        if row.get("testfilecountlocal", -1) == -1:
-            explanations.append("Test files could not be counted.")
+        if row.get("base_repo_url_flag", default=False):
+            explanations.append("Unable to extract base repository URL.")
         clone_status = row.get("clone_status", None)
         if clone_status == "failed":
             explanations.append("Repository clone failed.")
         elif clone_status is None:
             explanations.append("Clone status unknown.")
-
+        if row.get("testfilecountlocal", -1) == -1:
+            explanations.append("Test files could not be counted.")
         last_commit_hash = row.get("last_commit_hash", None)
         if pd.isna(last_commit_hash) or not last_commit_hash:
             explanations.append(
