@@ -22,8 +22,6 @@ import pandas as pd
 from loguru import logger
 from utils.git_utils import get_working_directory_or_git_root
 import plotly.graph_objects as go
-import re
-from collections import defaultdict
 
 
 def add_node(node_name):
@@ -33,43 +31,18 @@ def add_node(node_name):
         counter += 1
 
 
-# Function to parse the test_runners column and return a dict of test runners
-# and their counts
-def parse_test_runners(runners_str):
-    """Parses the 'test_runners' column in the dataset to extract test runners
-    and their counts."""
-
-    if pd.isna(runners_str) or runners_str in ["nan", "None detected"]:
-        return {}
-    runners = defaultdict(int)
-    parts = runners_str.split(",")
-    for part in parts:
-        match = re.match(r"(\w+):\s*(\d+)", part.strip())
-        if match:
-            runners[match.group(1)] += int(match.group(2))
-    return dict(runners)
-
-
 # Setting up the working directory and logger
 working_directory = get_working_directory_or_git_root()
 logger.info(f"Working directory is: {working_directory}")
 
 # Reading the original data
-df = pd.read_csv(working_directory / "data" / "updated_local_github_df_test_count.csv")
+df = pd.read_csv(working_directory / "data" / "ready_for_sankey_df.csv")
 
 # Clone status updated for null values as 'not cloned'
 df["clone_status"] = df["clone_status"].fillna("not cloned")
 df["Repos Not Cloned"] = df["clone_status"] == "not cloned"
 df["Repos Cloned"] = df["clone_status"] == "successful"
 
-# Apply the parsing function to the test_runners column
-df["parsed_test_runners"] = df["test_runners"].apply(parse_test_runners)
-
-# Sum test runners for cloned repositories
-test_runner_counts = defaultdict(int)
-for index, row in df[df["Repos Cloned"]].iterrows():
-    for runner, count in row["parsed_test_runners"].items():
-        test_runner_counts[runner] += count
 
 # Test file counts categorized
 bins = [-1, 0, 9, 99, 999, float("inf")]
@@ -107,6 +80,24 @@ sources = []
 targets = []
 values = []
 
+# Calculate sums for each test runner's file patterns
+df["JUnit_total"] = df["JUnit_file_patterns"]
+df["pytest_total"] = df["pytest_file_patterns"]
+df["Mocha_total"] = df["Mocha_file_patterns"]
+
+# Calculate 'No test runner detected'
+df["No_test_runner_detected"] = (
+    (df["JUnit_total"] == 0) & (df["pytest_total"] == 0) & (df["Mocha_total"] == 0)
+).astype(int)
+
+# Sum up counts for the new Sankey layer
+test_runner_sums = {
+    "JUnit": df["JUnit_total"].sum(),
+    "pytest": df["pytest_total"].sum(),
+    "Mocha": df["Mocha_total"].sum(),
+    "No test runner detected": df["No_test_runner_detected"].sum(),
+}
+
 # Add nodes
 add_node("Original Data")
 for domain in domains_more_than_ten:
@@ -118,13 +109,13 @@ add_node("Base Repo URL Issues")
 add_node("Repos not Cloned")
 add_node("Repos Cloned")
 
-
 for category in test_file_categories.keys():
     add_node(category)
 
-# Add nodes and links for test runners
-for runner, count in test_runner_counts.items():
-    add_node(runner)  # Create a node for each test runner
+# Add nodes for the test runners
+for runner in test_runner_sums.keys():
+    add_node(runner)
+
 
 # Link from 'Original Data' to individual domains and grouped node
 sources.append(node_dict["Original Data"])
@@ -170,11 +161,11 @@ for domain in domains_more_than_ten:
     # Link domain to Repos Not Cloned if applicable, excluding duplicates,
     # Incomplete URLs, Base Repo URL Issues
     domain_repos_not_cloned_count = df[
-        (df["repodomain"] == domain)
-        & df["Repos Not Cloned"]
-        & ~df["base_repo_url_flag"]
+        ~df["base_repo_url_flag"]
         & ~df["incomplete_url_flag"]
         & ~df["duplicate_flag"]
+        & (df["clone_status"] == "failed")
+        & (df["repodomain"] == domain)
     ].shape[0]
     if domain_repos_not_cloned_count > 0:
         sources.append(node_dict[domain])
@@ -184,16 +175,18 @@ for domain in domains_more_than_ten:
     # Link domain to Repos Cloned if applicable, excluding duplicates,
     # Incomplete URLs, Base Repo URL Issues
     domain_repos_cloned_count = df[
-        (df["repodomain"] == domain)
-        & df["Repos Cloned"]
-        & ~df["base_repo_url_flag"]
+        ~df["base_repo_url_flag"]
         & ~df["incomplete_url_flag"]
         & ~df["duplicate_flag"]
+        & (df["clone_status"] == "successful")
+        & (df["repodomain"] == domain)
     ].shape[0]
+
     if domain_repos_cloned_count > 0:
         sources.append(node_dict[domain])
         targets.append(node_dict["Repos Cloned"])
         values.append(domain_repos_cloned_count)
+
 
 # Link 'Domains with < 10 Repos' to Duplicates if applicable
 less_than_ten_duplicates_count = df[
@@ -205,7 +198,8 @@ if less_than_ten_duplicates_count > 0:
     targets.append(node_dict["Duplicates"])
     values.append(less_than_ten_duplicates_count)
 
-# Link 'Domains with < 10 Repos' to Incomplete URLs if applicable, excluding duplicates
+# Link 'Domains with < 10 Repos' to Incomplete URLs if applicable, excluding
+# duplicates
 less_than_ten_incomplete_urls_count = df[
     (df["repodomain"].isin(domain_counts[domain_counts <= 10].index))
     & df["incomplete_url_flag"]
@@ -216,7 +210,8 @@ if less_than_ten_incomplete_urls_count > 0:
     targets.append(node_dict["Incomplete URLs"])
     values.append(less_than_ten_incomplete_urls_count)
 
-# Link 'Domains with < 10 Repos' to Base Repo URL Issues if applicable, excluding duplicates and Incomplete URLs
+# Link 'Domains with < 10 Repos' to Base Repo URL Issues if applicable,
+# excluding duplicates and Incomplete URLs
 less_than_ten_base_repo_url_issues_count = df[
     (df["repodomain"].isin(domain_counts[domain_counts <= 10].index))
     & df["base_repo_url_flag"]
@@ -232,51 +227,92 @@ if less_than_ten_base_repo_url_issues_count > 0:
 # duplicates, Incomplete URLs, Base Repo URL Issues
 less_than_ten_repos_not_cloned_count = df[
     (df["repodomain"].isin(domain_counts[domain_counts <= 10].index))
-    & df["Repos Not Cloned"]
     & ~df["base_repo_url_flag"]
     & ~df["incomplete_url_flag"]
     & ~df["duplicate_flag"]
+    & (df["clone_status"] == "failed")
 ].shape[0]
+
 if less_than_ten_repos_not_cloned_count > 0:
     sources.append(node_dict["Domains with < 10 Repos"])
     targets.append(node_dict["Repos not Cloned"])
     values.append(less_than_ten_repos_not_cloned_count)
 
+
 # Link 'Domains with < 10 Repos' to Repos Cloned if applicable, excluding
 # duplicates, Incomplete URLs, Base Repo URL Issues
 less_than_ten_repos_cloned_count = df[
     (df["repodomain"].isin(domain_counts[domain_counts <= 10].index))
-    & df["Repos Cloned"]
     & ~df["base_repo_url_flag"]
     & ~df["incomplete_url_flag"]
     & ~df["duplicate_flag"]
+    & (df["clone_status"] == "successful")
 ].shape[0]
+
 if less_than_ten_repos_cloned_count > 0:
     sources.append(node_dict["Domains with < 10 Repos"])
     targets.append(node_dict["Repos Cloned"])
     values.append(less_than_ten_repos_cloned_count)
 
 
-# Link from 'Repos Cloned' to the test file categories
-repos_cloned_index = node_dict["Repos Cloned"]
-for category, (lower_bound, upper_bound) in test_file_categories.items():
-    # Filter df to find counts within bounds for cloned repos
-    count = df[
-        (df["Repos Cloned"])
-        & (df["testfilecountlocal"] >= lower_bound)
-        & (df["testfilecountlocal"] <= upper_bound)
-    ].shape[0]
-    if count > 0:
-        sources.append(repos_cloned_index)
-        targets.append(node_dict[category])
-        values.append(count)
+# Determine the primary test runner for each repository
+df["primary_runner"] = df[
+    ["JUnit_file_patterns", "pytest_file_patterns", "Mocha_file_patterns"]
+].idxmax(axis=1)
 
-# Link from 'Repos Cloned' to the test runners
-for runner, count in test_runner_counts.items():
-    if count > 0:
-        sources.append(repos_cloned_index)
+# Replace column names with runner names
+df["primary_runner"] = df["primary_runner"].replace(
+    {
+        "JUnit_file_patterns": "JUnit",
+        "pytest_file_patterns": "pytest",
+        "Mocha_file_patterns": "Mocha",
+    }
+)
+
+# Handling cases where all runners have zero files (if necessary)
+df.loc[
+    df[["JUnit_file_patterns", "pytest_file_patterns", "Mocha_file_patterns"]].sum(
+        axis=1
+    )
+    == 0,
+    "primary_runner",
+] = "No test runner detected"
+
+# For each runner, calculate the number of repositories that primarily use it
+for runner in ["JUnit", "pytest", "Mocha"]:
+    runner_repo_count = df[
+        (df["primary_runner"] == runner) & (df["clone_status"] == "successful")
+    ].shape[0]
+    if runner_repo_count > 0:
+        sources.append(node_dict["Repos Cloned"])
         targets.append(node_dict[runner])
-        values.append(count)
+        values.append(runner_repo_count)
+
+# Don't forget to handle 'No test runner detected'
+no_runner_count = df[
+    (df["primary_runner"] == "No test runner detected")
+    & (df["clone_status"] == "successful")
+].shape[0]
+if no_runner_count > 0:
+    sources.append(node_dict["Repos Cloned"])
+    targets.append(node_dict["No test runner detected"])
+    values.append(no_runner_count)
+
+# Calculate how many repositories primarily using each test runner fall into each test file category.
+# (pass the count of repositories in each category.)
+
+for runner in ["JUnit", "pytest", "Mocha", "No test runner detected"]:
+    for category in test_file_categories.keys():
+        # Calculate the number of repositories for each runner in each test file category
+        category_count = df[
+            (df["primary_runner"] == runner)
+            & (df["Test File Categories"] == category)
+            & (df["clone_status"] == "successful")
+        ].shape[0]
+        if category_count > 0:
+            sources.append(node_dict[runner])
+            targets.append(node_dict[category])
+            values.append(category_count)
 
 
 # Visualise the Sankey Diagram including the Duplicates layer
