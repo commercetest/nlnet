@@ -1,27 +1,61 @@
-"""
-This script performs analysis on a dataset containing information about various
-code hosting platform repositories and visualises the results using a Sankey
-diagram.
-
-
-Variables:
-    - working_directory: Path to the working directory or Git root directory.
-    - df: DataFrame containing the original data read from a CSV file.
-    - test_file_categories: Dictionary categorising test file counts into bins.
-    - domain_counts: Series containing the count of repositories per domain.
-    - domains_more_than_ten: List of domains with more than ten repositories.
-    - domains_less_than_ten_count: Total count of repositories across domains
-    with ten or fewer repositories.
-    - node_dict: Dictionary mapping node names to numerical indices for Sankey
-    diagram visualisation.
-    - sources, targets, values: Lists storing sources, targets, and values for
-    Sankey diagram links.
-"""
-
-import pandas as pd
-from loguru import logger
 from utils.git_utils import get_working_directory_or_git_root
 import plotly.graph_objects as go
+import pandas as pd
+import re
+import os
+from loguru import logger
+from utils.string_utils import sanitise_directory_name
+
+
+test_runners = {
+    "JUnit": {
+        "dependency_patterns": ["org.junit.jupiter:junit-jupiter", "junit:junit"],
+        "config_files": ["pom.xml", "build.gradle"],
+        "file_patterns": [".*Test.java"],
+    },
+    "pytest": {
+        "dependency_patterns": [],
+        "config_files": ["pytest.ini", "tox.ini", "pyproject.toml"],
+        "file_patterns": ["test_.*.py", ".*_test.py"],
+    },
+    "Mocha": {
+        "dependency_patterns": ["mocha"],
+        "config_files": ["package.json", ".mocharc.json", ".mocharc.js"],
+        "file_patterns": ["test/.*.js"],
+    },
+}
+
+
+def detect_test_runners(repo_path):
+    runner_details = {
+        runner: {"dependency_patterns": 0, "config_files": 0, "file_patterns": 0}
+        for runner in test_runners
+    }
+
+    for root, dirs, files in os.walk(repo_path):
+        for runner, indicators in test_runners.items():
+            # Check for configuration files
+            for config_file in indicators["config_files"]:
+                if config_file in files:
+                    runner_details[runner]["config_files"] += 1
+
+            # Check for file patterns
+            for pattern in indicators["file_patterns"]:
+                matching_files = [file for file in files if re.match(pattern, file)]
+                runner_details[runner]["file_patterns"] += len(matching_files)
+
+            # Check for dependencies in the relevant configuration files
+            for dep_pattern in indicators["dependency_patterns"]:
+                for file in files:
+                    if file in indicators["config_files"]:
+                        path = os.path.join(root, file)
+                        if os.path.exists(path):
+                            with open(path, "r") as file_content:
+                                content = file_content.read()
+                                if dep_pattern in content:
+                                    runner_details[runner]["dependency_patterns"] += 1
+
+    return runner_details
 
 
 def add_node(node_name):
@@ -35,8 +69,48 @@ def add_node(node_name):
 working_directory = get_working_directory_or_git_root()
 logger.info(f"Working directory is: {working_directory}")
 
-# Reading the original data
-df = pd.read_csv(working_directory / "data" / "ready_for_sankey_df.csv")
+df = pd.read_csv(
+    working_directory / "data" / "bkp_updated_local_github_df_test_count.csv"
+)
+
+
+baginning_clone_dir = str(working_directory) + "/data" + "/cloned_repos/"
+
+# Initialise columns
+logger.info(f"Creating and initialising columns : {test_runners.keys()}")
+for runner in test_runners.keys():
+    df[f"{runner}_dependency_patterns"] = 0
+    df[f"{runner}_config_files"] = 0
+    df[f"{runner}_file_patterns"] = 0
+
+
+logger.info(
+    'Counting test runner files matching "dependency_patterns", '
+    '"config_files", "file_patterns" and saving the values in the '
+    "respective columns"
+)
+for index, row in df.iterrows():
+    if row["clone_status"] == "successful":
+        parts = row["repourl"].split("/")
+        clone_dir = (
+            baginning_clone_dir
+            + sanitise_directory_name(row["repodomain"])
+            + "/"
+            + parts[-1]
+        )
+        runner_presence = detect_test_runners(clone_dir)
+        for runner, details in runner_presence.items():
+            df.at[index, f"{runner}_dependency_patterns"] = details[
+                "dependency_patterns"
+            ]
+            df.at[index, f"{runner}_config_files"] = details["config_files"]
+            df.at[index, f"{runner}_file_patterns"] = details["file_patterns"]
+
+logger.info(
+    f"Saving the dataframe ready_for_sankey_df.csv in" f" {working_directory}/data"
+)
+df.to_csv(working_directory / "data" / "ready_for_sankey_df.csv", index=False)
+
 
 # Clone status updated for null values as 'not cloned'
 df["clone_status"] = df["clone_status"].fillna("not cloned")
@@ -44,7 +118,7 @@ df["Repos Not Cloned"] = df["clone_status"] == "not cloned"
 df["Repos Cloned"] = df["clone_status"] == "successful"
 
 
-# Test file counts categorized
+# Test file counts categorised
 bins = [-1, 0, 9, 99, 999, float("inf")]
 labels = [
     "0 test files",
@@ -63,7 +137,7 @@ test_file_categories = {
     "1 - 9 test files": (1, 9),
     "10 - 99 test files": (10, 99),
     "100 - 999 test files": (100, 999),
-    "More than 1000 test files": (1000, float("inf")),  # Renamed for clarity
+    "More than 1000 test files": (1000, float("inf")),
 }
 
 # Prepare domain counts
@@ -81,6 +155,7 @@ targets = []
 values = []
 
 # Calculate sums for each test runner's file patterns
+logger.info("Calculate sums for each test runner's file patterns")
 df["JUnit_total"] = df["JUnit_file_patterns"]
 df["pytest_total"] = df["pytest_file_patterns"]
 df["Mocha_total"] = df["Mocha_file_patterns"]
@@ -99,6 +174,7 @@ test_runner_sums = {
 }
 
 # Add nodes
+logger.info("Adding nodes for Sankey Diagram")
 add_node("Original Data")
 for domain in domains_more_than_ten:
     add_node(domain)
@@ -116,7 +192,7 @@ for category in test_file_categories.keys():
 for runner in test_runner_sums.keys():
     add_node(runner)
 
-
+logger.info("Defining links between nodes")
 # Link from 'Original Data' to individual domains and grouped node
 sources.append(node_dict["Original Data"])
 targets.append(node_dict["Domains with < 10 Repos"])
@@ -256,6 +332,7 @@ if less_than_ten_repos_cloned_count > 0:
 
 
 # Determine the primary test runner for each repository
+logger.info("Determine the primary test runner for each repository")
 df["primary_runner"] = df[
     ["JUnit_file_patterns", "pytest_file_patterns", "Mocha_file_patterns"]
 ].idxmax(axis=1)
@@ -279,6 +356,9 @@ df.loc[
 ] = "No test runner detected"
 
 # For each runner, calculate the number of repositories that primarily use it
+logger.info(
+    "For each runner, calculate the number of repositories that " "primarily use it"
+)
 for runner in ["JUnit", "pytest", "Mocha"]:
     runner_repo_count = df[
         (df["primary_runner"] == runner) & (df["clone_status"] == "successful")
@@ -288,7 +368,7 @@ for runner in ["JUnit", "pytest", "Mocha"]:
         targets.append(node_dict[runner])
         values.append(runner_repo_count)
 
-# Don't forget to handle 'No test runner detected'
+
 no_runner_count = df[
     (df["primary_runner"] == "No test runner detected")
     & (df["clone_status"] == "successful")
@@ -300,7 +380,7 @@ if no_runner_count > 0:
 
 # Calculate how many repositories primarily using each test runner fall into each test file category.
 # (pass the count of repositories in each category.)
-
+logger.info("Pass the count of repositories in each category")
 for runner in ["JUnit", "pytest", "Mocha", "No test runner detected"]:
     for category in test_file_categories.keys():
         # Calculate the number of repositories for each runner in each test file category
@@ -333,4 +413,5 @@ fig.update_layout(
     title_text="Extended Project Analysis Sankey Diagram with " "Test Runners",
     font_size=12,
 )
+
 fig.show()
