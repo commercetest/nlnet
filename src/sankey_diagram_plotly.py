@@ -69,9 +69,7 @@ def add_node(node_name):
 working_directory = get_working_directory_or_git_root()
 logger.info(f"Working directory is: {working_directory}")
 
-df = pd.read_csv(
-    working_directory / "data" / "bkp_updated_local_github_df_test_count.csv"
-)
+df = pd.read_csv(working_directory / "data" / "updated_local_github_df_test_count.csv")
 
 
 baginning_clone_dir = str(working_directory) + "/data" + "/cloned_repos/"
