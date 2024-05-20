@@ -182,15 +182,17 @@ def add_explanations(df):
 
     def get_explanation(row):
         explanations = []
+        clone_status = row.get("clone_status", None)
+        last_commit_hash_status = row.get("last_commit_hash", None)
         if row.get("duplicate_flag", default=False):
             explanations.append("Row is marked as a duplicate of another entry.")
-        if row.get("null_value_flag", default=False):
+        elif row.get("null_value_flag", default=False):
             explanations.append("Row contains null values.")
-        if row.get("domain_extraction_flag", default=False):
+        elif row.get("domain_extraction_flag", default=False):
             explanations.append(
                 "Domain could not be extracted due to unsupported or malformed " "URL."
             )
-        if row.get("incomplete_url_flag", default=False):
+        elif row.get("incomplete_url_flag", default=False):
             url_parts = row["repourl"].rstrip("/").split("/")
             if len(url_parts) < EXPECTED_URL_PARTS:
                 missing_parts = EXPECTED_URL_PARTS - len(url_parts)
@@ -199,20 +201,22 @@ def add_explanations(df):
                     f" parts (expects protocol, domain, and "
                     f"path)."
                 )
-        if row.get("base_repo_url_flag", default=False):
+        elif row.get("base_repo_url_flag", default=False):
             explanations.append("Unable to extract base repository URL.")
-        clone_status = row.get("clone_status", None)
-        if clone_status == "failed":
+
+        elif clone_status == "failed":
             explanations.append("Repository clone failed.")
         elif clone_status is None:
             explanations.append("Clone status unknown.")
-        if row.get("testfilecountlocal", -1) == -1:
-            explanations.append("Test files could not be counted.")
-        last_commit_hash = row.get("last_commit_hash", None)
-        if pd.isna(last_commit_hash) or not last_commit_hash:
-            explanations.append(
-                "Last commit hash is missing or could not be retrieved."
-            )
+
+        if clone_status == "successful":
+            if row.get("testfilecountlocal", -1) == -1:
+                explanations.append("Test files could not be counted.")
+
+            if pd.isna(last_commit_hash) or not last_commit_hash_status:
+                explanations.append(
+                    "Last commit hash is missing or could not be retrieved."
+                )
 
         return " | ".join(explanations) if explanations else "No issues detected."
 
@@ -253,17 +257,18 @@ if __name__ == "__main__":
 
         if csv_file_path.exists():
             df = pd.read_csv(csv_file_path)
-            df["testfilecountlocal"] = -1  # Initialise if first run
+            logger.info(
+                "Initialising the columns : 'clone_status', 'testfilecountlocal', 'last_commit_hash'"
+            )
             df["clone_status"] = None  # Initialise the clone status column
+            df["testfilecountlocal"] = -1  # Initialise if first run
+            df["last_commit_hash"] = None
         else:
             logger.error(
                 f"The input file has not been found at {csv_file_path}. Exiting..."
             )
             # Exit with error code 1 indicating that an error occurred
             sys.exit(1)
-
-    if "last_commit_hash" not in df.columns:
-        df["last_commit_hash"] = None  # Initialise the column with None
 
     # Number of repositories to process before saving to CSV
     BATCH_SIZE = 10
@@ -280,14 +285,23 @@ if __name__ == "__main__":
     # Open the text file just before the loop begins
     with open(test_file_list_path, "a") as file:
         for index, row in df.iterrows():
+            # Check if we need to skip this iteration and move to the next
+            # row as the data is either duplicate, there was
+            # an issue extracting the repository domain,
+            # URL lacks specific repository details(owner/reponame),
+            # or there was a problem extracting the base repository URL.
+            if (
+                row["duplicate_flag"] is True
+                or row["domain_extraction_flag"] is True
+                or row["incomplete_url_flag"] is True
+                or row["base_repo_url_flag"] is (None or True)
+            ):
+                continue
+
             # Check if we need to skip this repository because it's fully
             # processed
             if row["testfilecountlocal"] != -1 and pd.notna(row["last_commit_hash"]):
                 continue
-            if row["base_repo_url_flag"] is True:
-                continue  # Skip this iteration and move to the next row as the
-                # URL lacks specific repository details(owner/reponame)
-
             repo_url = row["repourl"]
             if not repo_url or repo_url is None:
                 logger.info(f"Invalid repository URL: {repo_url}")
@@ -317,12 +331,6 @@ if __name__ == "__main__":
                     )
                     df.at[index, "clone_status"] = "successful"
                     logger.info(f"Successfully cloned the repo: {repo_name}")
-
-                    # Fetch the last commit hash and store it in the DataFrame
-                    last_commit_hash = get_last_commit_hash(clone_dir)
-                    if last_commit_hash is not None:
-                        df.at[index, "last_commit_hash"] = last_commit_hash
-
                     # On successful clone, increment the processed_count
                     processed_count += 1
 
