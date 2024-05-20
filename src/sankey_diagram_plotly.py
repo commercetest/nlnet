@@ -226,14 +226,14 @@ def prepare_sankey_data(df):
             values.append(domain_repos_cloned_count)
 
     # Link 'Domains with < 10 Repos' to Duplicates if applicable
-    less_than_ten_duplicates_count = df[
-        (df["repodomain"].isin(domain_counts[domain_counts <= 10].index))
-        & df["duplicate_flag"]
-    ].shape[0]
-    if less_than_ten_duplicates_count > 0:
-        sources.append(node_dict["Domains with < 10 Repos"])
-        targets.append(node_dict["Duplicates"])
-        values.append(less_than_ten_duplicates_count)
+    # less_than_ten_duplicates_count = df[
+    #     (df["repodomain"].isin(domain_counts[domain_counts <= 10].index))
+    #     & df["duplicate_flag"]
+    # ].shape[0]
+    # if less_than_ten_duplicates_count > 0:
+    #     sources.append(node_dict["Domains with < 10 Repos"])
+    #     targets.append(node_dict["Duplicates"])
+    #     values.append(less_than_ten_duplicates_count)
 
     # Link 'Domains with < 10 Repos' to Incomplete URLs if applicable, excluding
     # duplicates
@@ -343,7 +343,9 @@ def prepare_sankey_data(df):
 working_directory = get_working_directory_or_git_root()
 logger.info(f"Working directory is: {working_directory}")
 
-df = pd.read_csv(working_directory / "data" / "updated_local_github_df_test_count.csv")
+df = pd.read_csv(
+    working_directory / "data" / "updated_local_github_df_test_count_12may.csv"
+)
 
 baginning_clone_dir = str(working_directory) + "/data" + "/cloned_repos/"
 
