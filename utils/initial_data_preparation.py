@@ -115,9 +115,10 @@ def mark_null_values(d):
         pd.DataFrame: The DataFrame with an added 'null_value_flag' column.
     """
     logger.info("Marking rows with null values.")
-
-    # Create a flag column for rows containing null values
-    df["null_value_flag"] = df.isnull().any(axis=1)
+    df["null_value_flag"] = False  # Initialise all rows to False
+    non_duplicate_rows = ~df["duplicate_flag"]  # Identify non-duplicate rows
+    # Set 'null_value_flag' to True only for non-duplicate rows with any null values
+    df.loc[non_duplicate_rows & df.isnull().any(axis=1), "null_value_flag"] = True
     nulls_count = df["null_value_flag"].sum()
 
     logger.info(f"Marked {nulls_count} rows with null values.")
@@ -144,14 +145,17 @@ def extract_and_flag_domains(df):
         else:
             return None
 
-    # Apply the domain extraction function
-    df["repodomain"] = df["repourl"].apply(get_domain)
+    # Apply the domain extraction function on non-duplicate rows
+    non_duplicate_rows = ~df["duplicate_flag"]  # Identify non-duplicate rows
+    df.loc[non_duplicate_rows, "repodomain"] = df.loc[
+        non_duplicate_rows, "repourl"
+    ].apply(get_domain)
 
     # Flag rows where the domain could not be extracted
     # (i.e., unsupported schemes)
     df["domain_extraction_flag"] = df["repodomain"].isnull()
-    # Count problematic rows and log them
-    unsupported_count = df["domain_extraction_flag"].sum()
+    # Count problematic rows (excluding duplicate rows) and log them
+    unsupported_count = df.loc[non_duplicate_rows, "domain_extraction_flag"].sum()
 
     logger.info(f"Found {unsupported_count} rows with unsupported domains")
 
@@ -193,7 +197,15 @@ def filter_out_incomplete_urls(df):
         return len(parts) >= EXPECTED_URL_PARTS
 
     # Identify rows with incomplete URLs using the helper function
-    df["incomplete_url_flag"] = ~df["repourl"].apply(is_complete_url)
+    non_duplicate_rows = ~df["duplicate_flag"]  # Identify non-duplicate rows
+    domain_extraction_successful = ~df[
+        "domain_extraction_flag"
+    ]  # Check for successful domain extraction
+    # Apply the incomplete URL flag condition on non-duplicate and unsuccessful domain extraction rows
+    df["incomplete_url_flag"] = ~df.loc[
+        non_duplicate_rows & domain_extraction_successful, "repourl"
+    ].apply(is_complete_url)
+    df["incomplete_url_flag"] = df["incomplete_url_flag"].astype(bool)
     incomplete_count = df["incomplete_url_flag"].sum()
     logger.info(
         f"Filtering Out Incomplete URLs: Found {incomplete_count} incomplete " f"URLs."
@@ -221,7 +233,7 @@ def get_base_repo_url(df):
     # Return None immediately if the URL is None or empty
     def extract_url(url):
         if not url:
-            return None, True
+            return None, True  # Return None for URL, True for unsuccessful flag
 
         parsed_url = urlparse(url)
         path = parsed_url.path
@@ -242,20 +254,25 @@ def get_base_repo_url(df):
 
         # Determine the base path based on the hosting platform
         if any(host in parsed_url.netloc for host in direct_path_platforms):
-            base_path = "/".join(parts)
+            base_path = path  # Use the whole path for these platforms
         elif len(parts) < 2:
-            # Check if the URL lacks specific repository details(owner/reponame)
-            return None, True  # URL lacks sufficient parts
+            return None, True  # URL lacks sufficient parts, flag as unsuccessful
         else:
-            base_path = "/".join(parts[:2])  # Default handling for GitHub-like
-            # URLs
+            base_path = "/".join(parts[:2])  # Standard handling for most URLs
 
         return f"{parsed_url.scheme}://{parsed_url.netloc}/{base_path}", False
 
-    # Apply the function to extract URL and flag
-    result = df["repourl"].apply(lambda x: extract_url(x))
-    df["base_repo_url"] = result.apply(lambda x: x[0])
-    df["base_repo_url_flag"] = result.apply(lambda x: x[1])
+    # Filter DataFrame based on specified conditions
+    filtered_rows = (
+        ~df["duplicate_flag"]
+        & ~df["domain_extraction_flag"]
+        & ~df["incomplete_url_flag"]
+    )
+    results = df.loc[filtered_rows, "repourl"].apply(extract_url)
+
+    # Apply results to the DataFrame
+    df.loc[filtered_rows, "base_repo_url"] = results.apply(lambda x: x[0])
+    df.loc[filtered_rows, "base_repo_url_flag"] = results.apply(lambda x: x[1])
 
     flagged_count = df["base_repo_url_flag"].sum()
     logger.info(
