@@ -67,7 +67,7 @@ genbadge coverage --output-file reports/coverage/coverage-badge.svg
 
    #### Overview
 
-   This script processes a TSV file to generate a DataFrame from which it extracts domains and organises entries into separate DataFrames based on these domains. Each domain-         specific DataFrame is saved as a CSV file if it contains more than 10 records. This approach ensures that data is systematically organised and readily accessible for further       analysis.
+   This script processes a TSV file to generate a DataFrame from which it extracts domains and organises entries into separate DataFrames based on these domains. Each domain is stored as a record. Each domain-specific DataFrame is saved as a CSV file if it contains more than 10 records. For domains with fewer than 10 records, the DataFrame is saved as 'other_domains.csv` .This approach ensures that data is systematically organised and readily accessible for further       analysis.
 
    Designed to be highly flexible, the script supports command-line arguments, allowing users to specify custom paths for the input TSV file and the output directories. This makes    the script ideal for integration into automated workflows where paths may vary.
 
