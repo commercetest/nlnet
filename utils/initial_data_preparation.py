@@ -30,7 +30,7 @@ Functions:
 - mark_duplicates(df): Marks duplicate rows in the DataFrame.
 - mark_null_values(df): Marks rows with null values in the DataFrame.
 - extract_and_flag_domains(df): Extracts domains from URLs and flags rows with unsupported URL schemes.
-- filter_out_incomplete_urls(df): Identifies incomplete URLs in the DataFrame.
+- mark_incomplete_urls(df): Identifies incomplete URLs in the DataFrame.
 - get_base_repo_url(df): Extracts the base repository URL from various hosting platforms.
 
 
@@ -162,7 +162,7 @@ def extract_and_flag_domains(df):
     return df
 
 
-def filter_out_incomplete_urls(df):
+def mark_incomplete_urls(df):
     """
     Identifies incomplete URLs in the DataFrame by adding a new boolean column
     `incomplete_url_flag`.A URL is considered complete if it contains at
@@ -347,7 +347,7 @@ if __name__ == "__main__":
 
     # Identifies incomplete URLs in the DataFrame by adding a new boolean column
     # `incomplete_url_flag`.
-    df = filter_out_incomplete_urls(df)
+    df = mark_incomplete_urls(df)
 
     # Extracting the base repo url
     df = get_base_repo_url(df)
