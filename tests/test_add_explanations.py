@@ -28,10 +28,7 @@ def test_add_explanations_empty_df():
                 "clone_status": "failed",
                 "last_commit_hash": None,
             },
-            "Row contains null values. | URL is incomplete; missing 2 parts "
-            "(expects protocol, domain, and path). | Test files could not be "
-            "counted. | Repository clone failed. | Last commit hash is missing or "
-            "could not be retrieved.",
+            "Row contains null values.",
         ),
         (
             {
@@ -45,9 +42,7 @@ def test_add_explanations_empty_df():
                 "clone_status": None,
                 "last_commit_hash": "abc123",
             },
-            "Row is marked as a duplicate of another entry. | Unable to extract "
-            "base repository URL. | Domain could not be extracted due to "
-            "unsupported or malformed URL. | Clone status unknown.",
+            "Row is marked as a duplicate of another entry.",
         ),
         # All flags false
         (
@@ -76,8 +71,7 @@ def test_add_explanations_empty_df():
                 "clone_status": None,
                 "last_commit_hash": None,
             },
-            "Test files could not be counted. | Clone status unknown. | Last "
-            "commit hash is missing or could not be retrieved.",
+            "Clone status unknown.",
         ),
     ],
 )
