@@ -88,7 +88,7 @@ genbadge coverage --output-file reports/coverage/coverage-badge.svg
    - mark_duplicates(df): Marks duplicate rows in the DataFrame.
    - mark_null_values(df): Marks rows with null values in the DataFrame.
    - extract_and_flag_domains(df): Extracts domains from URLs and flags rows with unsupported URL schemes.
-   - filter_out_incomplete_urls(df): Identifies incomplete URLs in the DataFrame.
+   - mark_incomplete_urls(df): Identifies incomplete URLs in the DataFrame.
    - get_base_repo_url(df): Extracts the base repository URL from various hosting platforms.
 
    #### Output DataFrame Columns:
@@ -98,7 +98,7 @@ genbadge coverage --output-file reports/coverage/coverage-badge.svg
    - 'duplicate_flag': Flag indicating duplicate rows.
    - 'null_value_flag': Flag indicating rows with null values.
    - 'repodomain': Extracted domain from the repository URL.
-   - 'domain_extraction_flag': Flag indicating unsupported URL schemes.
+   - 'unsupported_url_scheme': Flag indicating unsupported URL schemes.
    - 'incomplete_url_flag': Flag indicating incomplete URLs.
    - 'base_repo_url': Base repository URL extracted from various hosting platforms.
    - 'base_repo_url_flag': Flag indicating success or failure of base repository URL extraction.
