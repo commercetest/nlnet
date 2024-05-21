@@ -15,7 +15,7 @@ REQUIRED_COLUMNS = [
     # Extracted domain from the repository URL.
     "repodomain",
     # Flag indicating unsupported URL schemes
-    "domain_extraction_flag",
+    "unsupported_url_scheme",
     "incomplete_url_flag",
     # Base repository URL extracted from various hosting platforms.
     "base_repo_url",
