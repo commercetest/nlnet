@@ -135,7 +135,7 @@ def extract_and_flag_domains(df):
         df (pd.DataFrame): DataFrame containing the 'repourl' column with URLs.
 
     Returns:
-        pd.DataFrame: Updated DataFrame with 'repodomain' and 'unsupported_url_flag' columns.
+        pd.DataFrame: Updated DataFrame with 'repodomain' and 'unsupported_url_scheme' columns.
     """
 
     def get_domain(url):
@@ -153,9 +153,9 @@ def extract_and_flag_domains(df):
 
     # Flag rows where the domain could not be extracted
     # (i.e., unsupported schemes)
-    df["domain_extraction_flag"] = df["repodomain"].isnull()
+    df["unsupported_url_scheme"] = df["repodomain"].isnull()
     # Count problematic rows (excluding duplicate rows) and log them
-    unsupported_count = df.loc[non_duplicate_rows, "domain_extraction_flag"].sum()
+    unsupported_count = df.loc[non_duplicate_rows, "unsupported_url_scheme"].sum()
 
     logger.info(f"Found {unsupported_count} rows with unsupported domains")
 
@@ -199,7 +199,7 @@ def filter_out_incomplete_urls(df):
     # Identify rows with incomplete URLs using the helper function
     non_duplicate_rows = ~df["duplicate_flag"]  # Identify non-duplicate rows
     domain_extraction_successful = ~df[
-        "domain_extraction_flag"
+        "unsupported_url_scheme"
     ]  # Check for successful domain extraction
     # Apply the incomplete URL flag condition on non-duplicate and unsuccessful domain extraction rows
     df["incomplete_url_flag"] = ~df.loc[
@@ -207,11 +207,7 @@ def filter_out_incomplete_urls(df):
     ].apply(is_complete_url)
     df["incomplete_url_flag"] = df["incomplete_url_flag"].astype(bool)
     incomplete_count = df["incomplete_url_flag"].sum()
-    logger.info(
-        f"Filtering Out Incomplete URLs: Found {incomplete_count} incomplete " f"URLs."
-    )
-
-    incomplete_count = df["incomplete_url_flag"].sum()
+    logger.info(f"Found {incomplete_count} incomplete " f"URLs.")
 
     return df
 
@@ -265,7 +261,7 @@ def get_base_repo_url(df):
     # Filter DataFrame based on specified conditions
     filtered_rows = (
         ~df["duplicate_flag"]
-        & ~df["domain_extraction_flag"]
+        & ~df["unsupported_url_scheme"]
         & ~df["incomplete_url_flag"]
     )
     results = df.loc[filtered_rows, "repourl"].apply(extract_url)
