@@ -183,7 +183,7 @@ def add_explanations(df):
     def get_explanation(row):
         explanations = []
         clone_status = row.get("clone_status", None)
-        last_commit_hash_status = row.get("last_commit_hash", None)
+        last_commit_hash = row.get("last_commit_hash", None)
         if row.get("duplicate_flag", default=False):
             explanations.append("Row is marked as a duplicate of another entry.")
         elif row.get("null_value_flag", default=False):
@@ -213,10 +213,8 @@ def add_explanations(df):
             if row.get("testfilecountlocal", -1) == -1:
                 explanations.append("Test files could not be counted.")
 
-            if pd.isna(last_commit_hash) or not last_commit_hash_status:
-                explanations.append(
-                    "Last commit hash is missing or could not be retrieved."
-                )
+            if last_commit_hash is None:
+                explanations.append("Last commit hash could not be retrieved.")
 
         return " | ".join(explanations) if explanations else "No issues detected."
 
