@@ -227,12 +227,16 @@ def get_base_repo_url(df):
     """
 
     # Return None immediately if the URL is None or empty
+    if df.empty:
+        return None
+
     def extract_url(url):
         if not url:
             return None, True  # Return None for URL, True for unsuccessful flag
 
         parsed_url = urlparse(url)
-        path = parsed_url.path
+        # Strip leading '/' to avoid the first empty string in the list
+        path = parsed_url.path.strip("/")
 
         parts = path.split("/")
 
