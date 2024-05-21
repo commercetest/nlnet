@@ -188,7 +188,7 @@ def add_explanations(df):
             explanations.append("Row is marked as a duplicate of another entry.")
         elif row.get("null_value_flag", default=False):
             explanations.append("Row contains null values.")
-        elif row.get("domain_extraction_flag", default=False):
+        elif row.get("unsupported_url_scheme", default=False):
             explanations.append(
                 "Domain could not be extracted due to unsupported or malformed " "URL."
             )
@@ -290,7 +290,7 @@ if __name__ == "__main__":
             # or there was a problem extracting the base repository URL.
             if (
                 row["duplicate_flag"] is True
-                or row["domain_extraction_flag"] is True
+                or row["unsupported_url_scheme"] is True
                 or row["incomplete_url_flag"] is True
                 or row["base_repo_url_flag"] is (None or True)
             ):
@@ -322,7 +322,7 @@ if __name__ == "__main__":
                 try:
                     logger.info(f"Trying to clone {repo_url} into {clone_dir}")
                     subprocess.run(
-                        ["git", "clone", repo_url, str(clone_dir)],
+                        ["git", "clone", "--depth", "1", repo_url, str(clone_dir)],
                         check=True,
                         capture_output=True,
                         text=True,  # Output is captured as text
