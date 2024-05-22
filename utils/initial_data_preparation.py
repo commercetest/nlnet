@@ -1,10 +1,11 @@
 """
-This script processes a TSV file to create a DataFrame, performs data
-cleaning, and organises entries into separate DataFrames based on the domain
-extracted from URLs. Each domain-specific DataFrame is saved as a CSV file if
-it contains more than 10 records. It also performs detailed data cleaning by
-removing rows with null values and duplicates, and ensures URLs are complete
-and well-formed before extracting the domain for analysis.
+This script processes a TSV file to create various DataFrames, performs data
+cleaning(), and organises entries into separate DataFrames based on the
+domain
+extracted from URLs. Each domain is stored as a record. Each domain-specific
+DataFrame is saved as a CSV file if it contains more than 10 records. For
+domains with fewer than 10 records, the DataFrame is saved as
+'other_domains.csv`.
 
 Features:
 - **Data Input and Cleaning**: Reads a user-specified TSV file to create a
@@ -14,9 +15,10 @@ removes trailing slashes to standardise URL formats.
 - **Domain Extraction and Organisation**: Extracts domains from URLs and
 organises the data into separate DataFrames based on these domains.
 - **Data Output**: Saves DataFrames that contain more than 10 entries as CSV
-in a structured directory format, catering to repositories hosted under distinct
-domains. Additionally, it outputs the count of repositories for each domain
-into a text file for easy reference and further analysis.
+in a structured directory format catering to repositories hosted under distinct
+domains. For domains with fewer than 10 records, the DataFrame is saved as
+'other_domains.csv'. Additionally, it outputs the count of repositories for
+each domain into a text file for easy reference and further analysis.
 - **Command Line Flexibility**: Supports command-line arguments that allow users
 to specify custom paths for the input TSV file and the output directory.
 
@@ -24,15 +26,6 @@ Command Line Arguments:
 - --input-file: Specifies the path to the input TSV file.
 - --output-folder: Specifies the directory where output CSV files and other
   results will be saved. Defaults to 'data/'.
-
-Functions:
-- parse_args(): Parses command-line arguments to customise input and output paths.
-- mark_duplicates(df): Marks duplicate rows in the DataFrame.
-- mark_null_values(df): Marks rows with null values in the DataFrame.
-- extract_and_flag_domains(df): Extracts domains from URLs and flags rows with unsupported URL schemes.
-- mark_incomplete_urls(df): Identifies incomplete URLs in the DataFrame.
-- get_base_repo_url(df): Extracts the base repository URL from various hosting platforms.
-
 
 Usage:
 To run the script with default paths:
@@ -57,6 +50,9 @@ EXPECTED_URL_PARTS = 5
 
 
 def parse_args():
+    """
+    Provides options for specifying input file and output folder paths.
+    """
     parser = argparse.ArgumentParser(
         description="Reads and processes TSV data, checking for nulls and "
         "duplicates, and saves cleaned data as CSV."
@@ -105,8 +101,7 @@ def mark_duplicates(df):
 
 def mark_null_values(d):
     """
-    Adds a 'null_value_flag' column to the DataFrame to indicate rows with null
-    values.
+    Mark rows with null values in the DataFrame.
 
     Parameters:
         df (pd.DataFrame): The DataFrame in which to mark null values.
@@ -117,7 +112,8 @@ def mark_null_values(d):
     logger.info("Marking rows with null values.")
     df["null_value_flag"] = False  # Initialise all rows to False
     non_duplicate_rows = ~df["duplicate_flag"]  # Identify non-duplicate rows
-    # Set 'null_value_flag' to True only for non-duplicate rows with any null values
+    # Set 'null_value_flag' to True only for non-duplicate rows with any null
+    # values
     df.loc[non_duplicate_rows & df.isnull().any(axis=1), "null_value_flag"] = True
     nulls_count = df["null_value_flag"].sum()
 
@@ -164,12 +160,14 @@ def extract_and_flag_domains(df):
 
 def mark_incomplete_urls(df):
     """
+    Identifies incomplete URLs in the DataFrame.
+
     Identifies incomplete URLs in the DataFrame by adding a new boolean column
     `incomplete_url_flag`.A URL is considered complete if it contains at
     least five parts, including the protocol, empty segment (for '//'),
     domain, and at least two path segments, e.g.,
     'https://github.com/owner/repo'. Raises an error if the required column
-    'repourl' is missing. Logs the process in a JSONLines file.
+    'repourl' is missing.
 
     Args:
         df (pd.DataFrame): DataFrame containing URLs.
@@ -198,10 +196,11 @@ def mark_incomplete_urls(df):
 
     # Identify rows with incomplete URLs using the helper function
     non_duplicate_rows = ~df["duplicate_flag"]  # Identify non-duplicate rows
-    domain_extraction_successful = ~df[
-        "unsupported_url_scheme"
-    ]  # Check for successful domain extraction
-    # Apply the incomplete URL flag condition on non-duplicate and unsuccessful domain extraction rows
+    domain_extraction_successful = ~df["unsupported_url_scheme"]
+
+    # Check for successful domain extraction
+    # Apply the incomplete URL flag condition on non-duplicate and unsuccessful
+    # domain extraction rows
     df["incomplete_url_flag"] = ~df.loc[
         non_duplicate_rows & domain_extraction_successful, "repourl"
     ].apply(is_complete_url)
@@ -215,8 +214,15 @@ def mark_incomplete_urls(df):
 def get_base_repo_url(df):
     """
     Extracts the base repository URL from various hosting platforms and logs
-    the process. Adds a 'base_repo_url_flag' column to indicate success or
-    failure of extraction.
+    the process.
+
+    Extracts the base repository URL from various hosting platforms and adds a
+    'base_repo_url_flag' column to indicate success or failure of extraction.
+    Returns None immediately if the dataframe is None or empty. Determines
+    the base path based on the hosting platform and URL structure.
+    Filters DataFrame based on specified conditions (non-duplicate rows,
+    supported URL schemes, and complete URLs). Logs the process and counts
+    the rows with URL extraction issues.
 
     Args:
        df (pd.DataFrame): DataFrame containing URLs.
@@ -226,7 +232,7 @@ def get_base_repo_url(df):
       'base_repo_url_flag' columns.
     """
 
-    # Return None immediately if the URL is None or empty
+    # Return None immediately if the dataframe is None or empty
     if df.empty:
         return None
 
