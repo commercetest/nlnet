@@ -7,6 +7,8 @@ requests-ratelimiter~=0.6.0
 rdflib~=7.0.0
 pre-commit~=3.6.2
 ruff~=0.3.4
+plotly~=5.21.0
+gc
 
 # added to run test reports and generate a badge with the result
 defusedxml~=0.7.1
