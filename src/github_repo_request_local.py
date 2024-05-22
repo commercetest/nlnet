@@ -69,7 +69,7 @@ EXPECTED_URL_PARTS = 5
 
 def parse_args():
     """Parse command line arguments for excluded extensions and clone
-    directory."""
+    directory, and other options."""
     parser = argparse.ArgumentParser(
         description="Clone GitHub repositories and count " "test files."
     )
