@@ -1,12 +1,29 @@
-from utils.git_utils import get_working_directory_or_git_root
-import plotly.graph_objects as go
-import pandas as pd
-import re
-import os
-from loguru import logger
-from utils.string_utils import sanitise_directory_name
-# from utils.measure_performance import measure_performance, performance_records
+"""
+This script visualises the usage of various test runners across cloned
+repositories. It scans repositories for test patterns and dependencies, and
+visualises the data using a Sankey diagram in a web browser.
 
+Usage:
+    The script is intended to be run with command line arguments specifying
+    paths for input data and output:
+    Command line usage example:
+        python sankey_diagram_plotly.py --clone-dir=data/cloned_repos
+        --input-file=data/input.csv --output-file=data/output.csv`
+"""
+
+import argparse
+import os
+import re
+from pathlib import Path
+
+import pandas as pd
+import plotly.graph_objects as go
+from loguru import logger
+
+from utils.git_utils import get_working_directory_or_git_root
+from utils.string_utils import sanitise_directory_name
+
+# from utils.measure_performance import measure_performance, performance_records
 
 test_runners = {
     "JUnit": {
@@ -27,7 +44,42 @@ test_runners = {
 }
 
 
+def parse_args():
+    """
+    Parses and returns command line arguments specifying paths for input and
+    output file, and clone directories.
+    """
+    parser = argparse.ArgumentParser(description="Repository clone directory")
+    parser.add_argument(
+        "--clone-dir",
+        type=str,
+        default=str(
+            Path(get_working_directory_or_git_root()) / "data" / "cloned_repos"
+        ),
+        help="Defaults to a subdirectory within the project's data folder",
+    )
+    parser.add_argument(
+        "--input-file",
+        type=str,
+        default=str(Path("data/updated_local_github_df_test_count.csv")),
+        help="Path to the input CSV file.",
+    )
+    parser.add_argument(
+        "--output-file",
+        type=str,
+        default=str(Path("data/ready_for_sankey.csv ")),
+        help="Path to the output CSV file.",
+    )
+
+    return parser.parse_args()
+
+
 def detect_test_runners(repo_path):
+    """
+    Scans the specified repository path to identify test runners based on
+    predefined dependency patterns, configuration files, and file patterns.
+    Returns a dictionary summarising the presence of each test runner.
+    """
     runner_details = {
         runner: {"dependency_patterns": 0, "config_files": 0, "file_patterns": 0}
         for runner in test_runners
@@ -91,6 +143,12 @@ def detect_test_runners2(repo_path):
 
 
 def prepare_sankey_data(df):
+    """
+    Processes a DataFrame containing repository data to prepare the source,
+    target, and value lists for generating a Sankey diagram. The function
+    categorises repositories based on the number of test files and aggregates
+    data on test runner usage.
+    """
     # Test file counts categorised
     bins = [-1, 0, 9, 99, 999, float("inf")]
     labels = [
@@ -225,16 +283,6 @@ def prepare_sankey_data(df):
             targets.append(node_dict["Repos Cloned"])
             values.append(domain_repos_cloned_count)
 
-    # Link 'Domains with < 10 Repos' to Duplicates if applicable
-    # less_than_ten_duplicates_count = df[
-    #     (df["repodomain"].isin(domain_counts[domain_counts <= 10].index))
-    #     & df["duplicate_flag"]
-    # ].shape[0]
-    # if less_than_ten_duplicates_count > 0:
-    #     sources.append(node_dict["Domains with < 10 Repos"])
-    #     targets.append(node_dict["Duplicates"])
-    #     values.append(less_than_ten_duplicates_count)
-
     # Link 'Domains with < 10 Repos' to Incomplete URLs if applicable, excluding
     # duplicates
     less_than_ten_incomplete_urls_count = df[
@@ -320,7 +368,8 @@ def prepare_sankey_data(df):
         targets.append(node_dict["No test runner detected"])
         values.append(no_runner_count)
 
-    # Calculate how many repositories primarily using each test runner fall into each test file category.
+    # Calculate how many repositories primarily using each test runner fall
+    # into each test file category.
     # (pass the count of repositories in each category.)
     logger.info("Pass the count of repositories in each category")
     for runner in ["JUnit", "pytest", "Mocha", "No test runner detected"]:
@@ -339,14 +388,21 @@ def prepare_sankey_data(df):
     return node_dict, sources, targets, values
 
 
+args = parse_args()
+input_file = args.input_file
+clone_directory = args.clone_dir
+output_file = args.output_file
+
 # Setting up the working directory and logger
 working_directory = get_working_directory_or_git_root()
 logger.info(f"Working directory is: {working_directory}")
 
-df = pd.read_csv(working_directory / "data" / "updated_local_github_df_test_count.csv")
+logger.info(f"Input file path : {working_directory / input_file}")
+df = pd.read_csv(working_directory / input_file)
 
-baginning_clone_dir = str(working_directory) + "/data" + "/cloned_repos/"
-
+logger.info(f"Repositories Clone Directory : {working_directory / clone_directory}")
+beginning_clone_dir = str(working_directory / clone_directory) + "/"
+logger.info(f"Beginning_clone_dir : {beginning_clone_dir}")
 # Initialise columns
 logger.info(f"Creating and initialising columns : {test_runners.keys()}")
 for runner in test_runners.keys():
@@ -364,7 +420,7 @@ for index, row in df.iterrows():
     if row["clone_status"] == "successful":
         parts = row["repourl"].split("/")
         clone_dir = (
-            baginning_clone_dir
+            beginning_clone_dir
             + sanitise_directory_name(row["repodomain"])
             + "/"
             + parts[-1]
@@ -373,7 +429,7 @@ for index, row in df.iterrows():
         # runner_presence = measure_performance(detect_test_runners2, clone_dir)
         # Measure the performance of the detect_test_runners function
         # runner_presence = measure_performance(detect_test_runners, clone_dir)
-        runner_presence = detect_test_runners(clone_dir)
+        runner_presence = detect_test_runners2(clone_dir)
 
         for runner, details in runner_presence.items():
             df.at[index, f"{runner}_dependency_patterns"] = details[
@@ -392,10 +448,8 @@ for index, row in df.iterrows():
 # summary_stats = performance_df.describe()
 # print(summary_stats)
 
-logger.info(
-    f"Saving the dataframe ready_for_sankey_df.csv in" f" {working_directory}/data"
-)
-df.to_csv(working_directory / "data" / "ready_for_sankey_df.csv", index=False)
+logger.info(f"Sankey input dataframe saved in: " f"{working_directory/output_file}")
+df.to_csv(working_directory / output_file, index=False)
 
 node_dict, sources, targets, values = prepare_sankey_data(df)
 
