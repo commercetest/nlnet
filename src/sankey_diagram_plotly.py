@@ -12,8 +12,6 @@ Usage:
 """
 
 import argparse
-import os
-import re
 from pathlib import Path
 
 import pandas as pd
@@ -21,27 +19,6 @@ import plotly.graph_objects as go
 from loguru import logger
 
 from utils.git_utils import get_working_directory_or_git_root
-from utils.string_utils import sanitise_directory_name
-
-# from utils.measure_performance import measure_performance, performance_records
-
-test_runners = {
-    "JUnit": {
-        "dependency_patterns": ["org.junit.jupiter:junit-jupiter", "junit:junit"],
-        "config_files": ["pom.xml", "build.gradle"],
-        "file_patterns": [".*Test.java"],
-    },
-    "pytest": {
-        "dependency_patterns": [],
-        "config_files": ["pytest.ini", "tox.ini", "pyproject.toml"],
-        "file_patterns": ["test_.*.py", ".*_test.py"],
-    },
-    "Mocha": {
-        "dependency_patterns": ["mocha"],
-        "config_files": ["package.json", ".mocharc.json", ".mocharc.js"],
-        "file_patterns": ["test/.*.js"],
-    },
-}
 
 
 def parse_args():
@@ -72,78 +49,6 @@ def parse_args():
     )
 
     return parser.parse_args()
-
-
-def detect_test_runners(repo_path):
-    """
-    Scans the specified repository path to identify test runners based on
-    predefined dependency patterns, configuration files, and file patterns.
-    Returns a dictionary summarising the presence of each test runner.
-    """
-    runner_details = {
-        runner: {"dependency_patterns": 0, "config_files": 0, "file_patterns": 0}
-        for runner in test_runners
-    }
-
-    for root, dirs, files in os.walk(repo_path):
-        for runner, indicators in test_runners.items():
-            # Check for configuration files
-            for config_file in indicators["config_files"]:
-                if config_file in files:
-                    runner_details[runner]["config_files"] += 1
-
-            # Check for file patterns
-            for pattern in indicators["file_patterns"]:
-                matching_files = [file for file in files if re.match(pattern, file)]
-                runner_details[runner]["file_patterns"] += len(matching_files)
-
-            # Check for dependencies in the relevant configuration files
-            for dep_pattern in indicators["dependency_patterns"]:
-                for file in files:
-                    if file in indicators["config_files"]:
-                        path = os.path.join(root, file)
-                        if os.path.exists(path):
-                            with open(path, "r") as file_content:
-                                content = file_content.read()
-                                if dep_pattern in content:
-                                    runner_details[runner]["dependency_patterns"] += 1
-
-    return runner_details
-
-
-# Experimenting with detect_test_runners2() instead of detect_test_runners()
-# for improved performance. We're still evaluating which function performs
-# better in our specific use case. This change is part of an ongoing
-# experiment to optimise test runner detection.
-def detect_test_runners2(repo_path):
-    runner_details = {
-        runner: {"dependency_patterns": 0, "config_files": 0, "file_patterns": 0}
-        for runner in test_runners
-    }
-    # typically, dependency declarations are located within specific
-    # configuration files rather than scattered throughout various types of
-    # files in a repository. That's why the check for dependency_patterns is
-    # nested inside the loop that finds and processes these configuration files.
-    for root, dirs, files in os.walk(repo_path):
-        for runner, indicators in test_runners.items():
-            # Check for configuration files
-            for config_file in indicators["config_files"]:
-                if config_file in files:
-                    runner_details[runner]["config_files"] += 1
-                    # If the config file is found, read it once and check for dependencies
-                    path = os.path.join(root, config_file)
-                    with open(path, "r") as file_content:
-                        content = file_content.read()
-                        for dep_pattern in indicators["dependency_patterns"]:
-                            if dep_pattern in content:
-                                runner_details[runner]["dependency_patterns"] += 1
-
-            # Check for file patterns
-            for pattern in indicators["file_patterns"]:
-                matching_files = [file for file in files if re.match(pattern, file)]
-                runner_details[runner]["file_patterns"] += len(matching_files)
-
-    return runner_details
 
 
 def prepare_sankey_data(df):
@@ -407,53 +312,6 @@ df = pd.read_csv(working_directory / input_file)
 logger.info(f"Repositories Clone Directory : {working_directory / clone_directory}")
 beginning_clone_dir = str(working_directory / clone_directory) + "/"
 logger.info(f"Beginning_clone_dir : {beginning_clone_dir}")
-# Initialise columns
-logger.info(f"Creating and initialising columns : {test_runners.keys()}")
-for runner in test_runners.keys():
-    df[f"{runner}_dependency_patterns"] = 0
-    df[f"{runner}_config_files"] = 0
-    df[f"{runner}_file_patterns"] = 0
-
-logger.info(
-    'Counting test runner files matching "dependency_patterns", '
-    '"config_files", "file_patterns" and saving the values in the '
-    "respective columns"
-)
-
-for index, row in df.iterrows():
-    if row["clone_status"] == "successful":
-        parts = row["repourl"].split("/")
-        clone_dir = (
-            beginning_clone_dir
-            + sanitise_directory_name(row["repodomain"])
-            + "/"
-            + parts[-1]
-        )
-
-        # runner_presence = measure_performance(detect_test_runners2, clone_dir)
-        # Measure the performance of the detect_test_runners function
-        # runner_presence = measure_performance(detect_test_runners, clone_dir)
-        runner_presence = detect_test_runners2(clone_dir)
-
-        for runner, details in runner_presence.items():
-            df.at[index, f"{runner}_dependency_patterns"] = details[
-                "dependency_patterns"
-            ]
-            df.at[index, f"{runner}_config_files"] = details["config_files"]
-            df.at[index, f"{runner}_file_patterns"] = details["file_patterns"]
-
-
-# Convert performance records to a DataFrame for easy manipulation and analysis
-# performance_df = pd.DataFrame(performance_records)
-# performance_df.to_csv(working_directory / "data" /
-#                       "performance_df_file_opening_first.csv",
-#                       index=False)
-# Calculate summary statistics
-# summary_stats = performance_df.describe()
-# print(summary_stats)
-
-logger.info(f"Sankey input dataframe saved in: " f"{working_directory/output_file}")
-df.to_csv(working_directory / output_file, index=False)
 
 node_dict, sources, targets, values = prepare_sankey_data(df)
 
