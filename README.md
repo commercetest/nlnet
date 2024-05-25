@@ -67,9 +67,7 @@ genbadge coverage --output-file reports/coverage/coverage-badge.svg
 
    #### Overview
 
-   This script processes a TSV file to generate a DataFrame from which it extracts domains and organizes entries into separate DataFrames based on these domains. Each domain-         specific DataFrame is saved as a CSV file if it contains more than 10 records. This approach ensures that data is systematically organised and readily accessible for further       analysis.
-
-   The script also enhances data quality through essential cleaning operations. It removes rows containing null values and eliminates duplicate entries, retaining only the first      occurrence of each duplicate row.
+   This script processes a TSV file to generate a DataFrame from which it extracts domains and organises entries into separate DataFrames based on these domains. Each domain is stored as a record. Each domain-specific DataFrame is saved as a CSV file if it contains more than 10 records. For domains with fewer than 10 records, the DataFrame is saved as 'other_domains.csv` .This approach ensures that data is systematically organised and readily accessible for further       analysis.
 
    Designed to be highly flexible, the script supports command-line arguments, allowing users to specify custom paths for the input TSV file and the output directories. This makes    the script ideal for integration into automated workflows where paths may vary.
 
@@ -85,13 +83,32 @@ genbadge coverage --output-file reports/coverage/coverage-badge.svg
    - --input-file: Specifies the path to the input TSV file.
    - --output-folder: Specifies the directory where output CSV files and other results will be saved.
 
+   #### Functions
+   - parse_args(): Parses command-line arguments to customise input and output paths.
+   - mark_duplicates(df): Marks duplicate rows in the DataFrame.
+   - mark_null_values(df): Marks rows with null values in the DataFrame.
+   - extract_and_flag_domains(df): Extracts domains from URLs and flags rows with unsupported URL schemes.
+   - mark_incomplete_urls(df): Identifies incomplete URLs in the DataFrame.
+   - get_base_repo_url(df): Extracts the base repository URL from various hosting platforms.
+
+   #### Output DataFrame Columns:
+   - 'projectref': Unique project reference identifier.
+   - 'nlnetpage': NLnet project page URL.
+   - 'repourl': Repository URL extracted from the project page.
+   - 'duplicate_flag': Flag indicating duplicate rows.
+   - 'null_value_flag': Flag indicating rows with null values.
+   - 'repodomain': Extracted domain from the repository URL.
+   - 'unsupported_url_scheme': Flag indicating unsupported URL schemes.
+   - 'incomplete_url_flag': Flag indicating incomplete URLs.
+   - 'base_repo_url': Base repository URL extracted from various hosting platforms.
+   - 'base_repo_url_flag': Flag indicating success or failure of base repository URL extraction.
 
    #### Usage
-
    To use this script, you can specify all necessary command line arguments based on your requirements. For example:
-
    ```bash
-   python initial_data_preparation.py -input-file path/to/input_file.tsv --output-folder path/to/output_directory
+   python initial_data_preparation.py -input-file path/to/input_file.tsv
+   --output-folder path/to/output_directory
+   ```
 
 
 2. git_utils.py:

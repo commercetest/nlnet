@@ -1,128 +1,82 @@
 import pytest
-from utils.initial_data_preparation import filter_out_incomplete_urls, get_base_repo_url
+from utils.initial_data_preparation import mark_incomplete_urls, get_base_repo_url
 import pandas as pd
 
 
 def test_get_base_repo_url():
-    # Empty or null input
-    assert get_base_repo_url("") is None
-    assert get_base_repo_url(None) is None
+    # Test data setup
+    data = pd.DataFrame(
+        {
+            "repourl": [
+                None,  # Test for None input
+                "https://github.com/getdnsapi/stubby",
+                "https://github.com/namecoin",
+                "https://github.com/osresearch/heads/issues/540",
+                "https://git.sr.ht/~dvn/boxen",
+                "https://redmine.replicant.us/projects/replicant/wiki/"
+                "Tasks_funding#Graphics-acceleration",
+                "https://github.com/tdf/odftoolkit.git",
+                "https://git.savannah.gnu.org/git/mes.git",
+                "https://git.taler.net/git/libtalerutil.git",
+                "https://git.taler.net/taler-ios.git",
+                "just-a-string",
+                "http:///a-bad-url.com",
+                "https://github.com/getdnsapi/stubby.git#readme",
+                "https://github.com/getdnsapi/stubby.git?branch=main",
+                "https://gitlab.com/technostructures/kazarma/kazarma",
+                "https://gitlab.torproject.org/tpo/network-heal",
+                "https://codeberg.org/interpeer",
+                "https://codeberg.org/openEngiadina/geopub",
+                "https://codeberg.org/librEDA",
+                "https://framagit.org/incommon.cc",
+                "https://hydrillabugs.koszko.org/projects/haketilo/repository",
+                "https://git.replicant.us/replicant",
+                "https://gerrit.osmocom.org/plugins/gitiles/ims",
+            ],
+            "duplicate_flag": [False] * 23,
+            "unsupported_url_scheme": [False] * 23,
+            "incomplete_url_flag": [False] * 23,
+        }
+    )
+    data.loc[10:11, "unsupported_url_scheme"] = True  # Invalid URL formats
 
-    # Valid URLs
-    assert (
-        get_base_repo_url("https://github.com/getdnsapi/stubby")
-        == "https://github.com/getdnsapi/stubby"
-    )
-    assert get_base_repo_url("https://github.com/namecoin") is None
-    assert (
-        get_base_repo_url("https://github.com/osresearch/heads/issues/540")
-        == "https://github.com/osresearch/heads"
-    )
+    # Run the function
+    result_df = get_base_repo_url(data)
 
-    # URLs from other code hosting platforms
-    assert (
-        get_base_repo_url("https://git.sr.ht/~dvn/boxen")
-        == "https://git.sr.ht/~dvn/boxen"
-    )
-    assert (
-        get_base_repo_url(
-            "https://redmine.replicant.us/projects/replicant"
-            "/wiki/Tasks_funding#Graphics-acceleration"
-        )
-        == "https://redmine.replicant.us/projects/replicant"
-    )
+    # Expected results setup
+    expected_urls = [
+        None,  # None input
+        "https://github.com/getdnsapi/stubby",
+        None,  # URL leading to a user page, no specific repo
+        "https://github.com/osresearch/heads",
+        "https://git.sr.ht/~dvn/boxen",
+        "https://redmine.replicant.us/projects/replicant",
+        "https://github.com/tdf/odftoolkit.git",
+        "https://git.savannah.gnu.org/git/mes.git",
+        "https://git.taler.net/git/libtalerutil.git",
+        "https://git.taler.net/taler-ios.git",
+        None,  # Invalid format
+        None,  # Invalid format
+        "https://github.com/getdnsapi/stubby.git",
+        "https://github.com/getdnsapi/stubby.git",
+        "https://gitlab.com/technostructures/kazarma/kazarma",
+        "https://gitlab.torproject.org/tpo/network-heal",
+        "https://codeberg.org/interpeer",
+        "https://codeberg.org/openEngiadina/geopub",
+        "https://codeberg.org/librEDA",
+        "https://framagit.org/incommon.cc",
+        "https://hydrillabugs.koszko.org/projects/haketilo/repository",
+        "https://git.replicant.us/replicant",
+        "https://gerrit.osmocom.org/plugins/gitiles/ims",
+    ]
 
-    # Checking the `repourls` which ends with `.git`
-    assert (
-        get_base_repo_url("https://github.com/tdf/odftoolkit.git")
-        == "https://github.com/tdf/odftoolkit.git"
-    )
-    assert (
-        get_base_repo_url("https://git.savannah.gnu.org/git/mes.git")
-        == "https://git.savannah.gnu.org/git/mes.git"
-    )
-    assert (
-        get_base_repo_url("https://git.taler.net/git/libtalerutil.git")
-        == "https://git.taler.net/git/libtalerutil.git"
-    )
-    assert (
-        get_base_repo_url("https://git.taler.net/taler-ios.git")
-        == "https://git.taler.net/taler-ios.git"
-    )
-    # Invalid URL formats
-    assert get_base_repo_url("just-a-string") is None
-    assert get_base_repo_url("http:///a-bad-url.com") is None
-
-    # URLs with query parameters or fragments
-    assert (
-        get_base_repo_url("https://github.com/getdnsapi/stubby.git#readme")
-        == "https://github.com/getdnsapi/stubby.git"
-    )
-
-    assert (
-        get_base_repo_url("https://github.com/getdnsapi/stubby.git?branch=main")
-        == "https://github.com/getdnsapi/stubby.git"
-    )
-    # Writing test for direct_path_platforms
-    #         "gitlab.com",
-    #         "gitlab.torproject.org",
-    #         "codeberg.org",
-    #         "framagit.org",
-    #         "hydrillabugs.koszko.org",
-    #         "git.replicant.us",
-    #         "gerrit.osmocom.org",
-    #         "git.taler.net"
-
-    assert (
-        get_base_repo_url("https://gitlab.com/technostructures/kazarma/kazarma")
-        == "https://gitlab.com/technostructures/kazarma/kazarma"
-    )
-
-    assert (
-        get_base_repo_url("https://gitlab.torproject.org/tpo/network-heal")
-        == "https://gitlab.torproject.org/tpo/network-heal"
-    )
-
-    assert (
-        get_base_repo_url("https://codeberg.org/interpeer")
-        == "https://codeberg.org/interpeer"
-    )
-
-    assert (
-        get_base_repo_url("https://codeberg.org/openEngiadina/geopub")
-        == "https://codeberg.org/openEngiadina/geopub"
-    )
-
-    assert (
-        get_base_repo_url("https://codeberg.org/librEDA")
-        == "https://codeberg.org/librEDA"
-    )
-
-    assert (
-        get_base_repo_url("https://framagit.org/incommon.cc")
-        == "https://framagit.org/incommon.cc"
-    )
-
-    assert (
-        get_base_repo_url(
-            "https://hydrillabugs.koszko.org/projects/haketilo/repository"
-        )
-        == "https://hydrillabugs.koszko.org/projects/haketilo/repository"
-    )
-
-    assert (
-        get_base_repo_url("https://git.replicant.us/replicant")
-        == "https://git.replicant.us/replicant"
-    )
-
-    assert (
-        get_base_repo_url("https://gerrit.osmocom.org/plugins/gitiles/ims")
-        == "https://gerrit.osmocom.org/plugins/gitiles/ims"
-    )
-
-    assert get_base_repo_url("https://git.taler.net/taler-ios.git") == (
-        "https://git.taler.net/taler-ios.git"
-    )
+    # Checking results
+    for expected, actual in zip(expected_urls, result_df["base_repo_url"].tolist()):
+        # Check if both values are missing values
+        if pd.isna(expected) and pd.isna(actual):
+            continue  # This treats both None and nan as equivalent for the
+            # purpose of the test
+        assert expected == actual, f"Expected {expected}, got {actual}"
 
 
 @pytest.mark.parametrize(
@@ -166,7 +120,7 @@ def test_get_base_repo_url():
 )
 def test_filter_incomplete_urls(data, expected_length, expected_urls):
     df = pd.DataFrame(data)
-    result = filter_out_incomplete_urls(df)
+    result = mark_incomplete_urls(df)
     assert len(result) == expected_length, (
         "The number of returned rows does not match " "the expected value."
     )
@@ -209,7 +163,7 @@ def test_filter_incomplete_urls(data, expected_length, expected_urls):
 )
 def test_filter_urls_with_various_data_types(data, expected_length):
     df = pd.DataFrame(data)
-    result = filter_out_incomplete_urls(df)
+    result = mark_incomplete_urls(df)
     assert len(result) == expected_length, (
         "The number of returned rows does " "not match the expected value."
     )
@@ -246,7 +200,7 @@ def test_filter_urls_with_various_data_types(data, expected_length):
 )
 def test_url_with_special_characters(url, is_valid):
     df = pd.DataFrame({"repourl": [url]})
-    result = filter_out_incomplete_urls(df)
+    result = mark_incomplete_urls(df)
     assert (len(result) == 1) == is_valid, f"URL '{url}' validation failed."
 
 
@@ -260,4 +214,4 @@ def test_url_with_special_characters(url, is_valid):
 def test_filter_incomplete_urls_exceptions(data, expected_exception):
     df = pd.DataFrame(data)
     with pytest.raises(expected_exception):
-        filter_out_incomplete_urls(df)
+        mark_incomplete_urls(df)

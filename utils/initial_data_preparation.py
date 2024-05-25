@@ -1,10 +1,11 @@
 """
-This script processes a TSV file to create a DataFrame, performs data
-cleaning, and organises entries into separate DataFrames based on the domain
-extracted from URLs. Each domain-specific DataFrame is saved as a CSV file if
-it contains more than 10 records. It also performs detailed data cleaning by
-removing rows with null values and duplicates, and ensures URLs are complete
-and well-formed before extracting the domain for analysis.
+This script processes a TSV file to create various DataFrames, performs data
+cleaning(), and organises entries into separate DataFrames based on the
+domain
+extracted from URLs. Each domain is stored as a record. Each domain-specific
+DataFrame is saved as a CSV file if it contains more than 10 records. For
+domains with fewer than 10 records, the DataFrame is saved as
+'other_domains.csv`.
 
 Features:
 - **Data Input and Cleaning**: Reads a user-specified TSV file to create a
@@ -14,11 +15,13 @@ removes trailing slashes to standardise URL formats.
 - **Domain Extraction and Organisation**: Extracts domains from URLs and
 organises the data into separate DataFrames based on these domains.
 - **Data Output**: Saves DataFrames that contain more than 10 entries as CSV
-in a structured directory format, catering to repositories hosted under distinct
-domains. Additionally, it outputs the count of repositories for each domain
-into a text file for easy reference and further analysis.
+in a structured directory format catering to repositories hosted under distinct
+domains. For domains with fewer than 10 records, the DataFrame is saved as
+'other_domains.csv'. Additionally, it outputs the count of repositories for
+each domain into a text file for easy reference and further analysis.
 - **Command Line Flexibility**: Supports command-line arguments that allow users
 to specify custom paths for the input TSV file and the output directory.
+
 Command Line Arguments:
 - --input-file: Specifies the path to the input TSV file.
 - --output-folder: Specifies the directory where output CSV files and other
@@ -34,7 +37,6 @@ To specify custom paths:
 """
 
 import pandas as pd
-import numpy as np
 import argparse
 from pathlib import Path
 from loguru import logger
@@ -43,8 +45,14 @@ from utils.string_utils import sanitise_directory_name
 import os
 from urllib.parse import urlparse
 
+# Constants for URL validation
+EXPECTED_URL_PARTS = 5
+
 
 def parse_args():
+    """
+    Provides options for specifying input file and output folder paths.
+    """
     parser = argparse.ArgumentParser(
         description="Reads and processes TSV data, checking for nulls and "
         "duplicates, and saves cleaned data as CSV."
@@ -68,88 +76,108 @@ def parse_args():
     return parser.parse_args()
 
 
-def remove_duplicates(df):
+def mark_duplicates(df):
     """
-    Removes duplicate rows from the DataFrame and logs the result.
+    Adds a 'duplicate_flag' column to the DataFrame to indicate duplicate rows.
 
     Parameters:
-        df (pd.DataFrame): The DataFrame from which to remove duplicates.
+        df (pd.DataFrame): The DataFrame in which to mark duplicates.
 
     Returns:
-        tuple: A tuple containing the deduplicated DataFrame and the count of
-         removed rows.
+        pd.DataFrame: The DataFrame with an added 'duplicate_flag' column.
     """
-    logger.info("Starting to remove duplicate rows.")
-    initial_count = len(df)
-    duplicates = df.duplicated().sum()
 
-    if duplicates:
-        logger.info(f"Number of duplicate rows: {duplicates}")
-        # Keep the first occurrence of each duplicate row and remove the others
-        deduped_df = df.drop_duplicates(keep="first")
-        duplicates_removed = initial_count - len(deduped_df)
-        logger.info(
-            f"First occurrence of each duplicate row has been kept. "
-            f"Dropped {duplicates_removed} duplicate rows."
-        )
-    else:
-        logger.info("No duplicate rows found.")
-        deduped_df = df.copy()
-        duplicates_removed = 0  # No duplicates found, so no rows removed
+    # 'duplicate_flag' is `False` for the first occurrence, and it is `True`
+    # for the duplicate row
+    df["duplicate_flag"] = df.duplicated(keep="first")
+    duplicates_count = df["duplicate_flag"].sum()
 
-    return deduped_df, duplicates_removed
+    logger.info(f"Marked {duplicates_count} duplicate rows.")
+
+    return df
 
 
-def remove_null_values(df):
+def mark_null_values(d):
     """
-    Removes rows with null values from the DataFrame and logs the result.
+    Mark rows with null values in the DataFrame.
 
     Parameters:
-        df (pd.DataFrame): The DataFrame from which to remove nulls.
+        df (pd.DataFrame): The DataFrame in which to mark null values.
 
     Returns:
-        tuple: A tuple containing the non-null DataFrame and the count of
-        removed rows.
+        pd.DataFrame: The DataFrame with an added 'null_value_flag' column.
     """
-    initial_count = len(df)
-    null_counts = df.isnull().sum()
+    logger.info("Marking rows with null values.")
+    df["null_value_flag"] = False  # Initialise all rows to False
+    non_duplicate_rows = ~df["duplicate_flag"]  # Identify non-duplicate rows
+    # Set 'null_value_flag' to True only for non-duplicate rows with any null
+    # values
+    df.loc[non_duplicate_rows & df.isnull().any(axis=1), "null_value_flag"] = True
+    nulls_count = df["null_value_flag"].sum()
 
-    if np.any(null_counts):
-        logger.info("Null values found:")
-        logger.info(null_counts[null_counts > 0])
-        # Drop rows with any null values
-        non_null_df = df.dropna()
-        nulls_removed = initial_count - len(non_null_df)
-        logger.info(f"Dropped {nulls_removed} rows containing null values.")
-    else:
-        logger.info("No null values found.")
-        non_null_df = df.copy()
-        nulls_removed = 0
+    logger.info(f"Marked {nulls_count} rows with null values.")
 
-    return non_null_df, nulls_removed
+    return df
 
 
-def filter_out_incomplete_urls(df):
+# Define a function to extract domain and flag errors
+def extract_and_flag_domains(df):
     """
-    Filters rows in a DataFrame based on the completeness of the 'repourl'
-    URLs. A URL is considered complete if it contains at least five parts,
-    including the protocol, empty segment (for '//'), domain, and at least
-    two path segments, e.g., 'https://github.com/owner/repo'. Raises
-    an error if the required column 'repourl' is missing.
+    Extracts domains from URLs and flags rows with unsupported URL schemes.
+
+    Parameters:
+        df (pd.DataFrame): DataFrame containing the 'repourl' column with URLs.
+
+    Returns:
+        pd.DataFrame: Updated DataFrame with 'repodomain' and 'unsupported_url_scheme' columns.
+    """
+
+    def get_domain(url):
+        parsed_url = urlparse(url)
+        if parsed_url.scheme in ["http", "https", "git"]:
+            return parsed_url.hostname
+        else:
+            return None
+
+    # Apply the domain extraction function on non-duplicate rows
+    non_duplicate_rows = ~df["duplicate_flag"]  # Identify non-duplicate rows
+    df.loc[non_duplicate_rows, "repodomain"] = df.loc[
+        non_duplicate_rows, "repourl"
+    ].apply(get_domain)
+
+    # Flag rows where the domain could not be extracted
+    # (i.e., unsupported schemes)
+    df["unsupported_url_scheme"] = df["repodomain"].isnull()
+    # Count problematic rows (excluding duplicate rows) and log them
+    unsupported_count = df.loc[non_duplicate_rows, "unsupported_url_scheme"].sum()
+
+    logger.info(f"Found {unsupported_count} rows with unsupported domains")
+
+    return df
+
+
+def mark_incomplete_urls(df):
+    """
+    Identifies incomplete URLs in the DataFrame.
+
+    Identifies incomplete URLs in the DataFrame by adding a new boolean column
+    `incomplete_url_flag`. A URL is considered complete if it contains at
+    least five parts, including the protocol, an empty segment (for '//'),
+    domain, and at least two path segments, e.g.,
+    'https://github.com/owner/repo'. Raises an error if the required column
+    'repourl' is missing.
 
     Args:
         df (pd.DataFrame): DataFrame containing URLs.
 
     Returns:
-        pd.DataFrame: DataFrame with rows containing complete URLs.
+        pd.DataFrame: The original DataFrame with the new
+        `incomplete_url_flag` column.
 
     Raises:
         ValueError: If the 'repourl' column is missing from the DataFrame.
     """
     if "repourl" not in df.columns:
-        logger.critical(
-            "Critical: DataFrame columns are: {}".format(df.columns.tolist())
-        )
         logger.critical(
             "DataFrame does not contain 'repourl' column. Aborting operation."
         )
@@ -160,71 +188,103 @@ def filter_out_incomplete_urls(df):
         # Check if the url is not a string
         if not isinstance(url, str):
             return False
-
         # Example url: https://github.com/owner/repo
-        parts = url.rstrip("/").split("/")
-        return len(parts) >= 5
+        parts = url.split("/")
+        return len(parts) >= EXPECTED_URL_PARTS
 
     # Identify rows with incomplete URLs using the helper function
-    incomplete_urls = df[~df["repourl"].apply(is_complete_url)]
+    non_duplicate_rows = ~df["duplicate_flag"]  # Identify non-duplicate rows
+    domain_extraction_successful = ~df["unsupported_url_scheme"]
 
-    # Log the incomplete URLs
-    if not incomplete_urls.empty:
-        logger.warning(
-            f"{len(incomplete_urls)} incomplete GitHub URLs found and will not "
-            f"be analysed:"
-        )
-        for url in incomplete_urls["repourl"]:
-            logger.info(f"Excluding the repourl: {url}")
+    # Check for successful domain extraction
+    # Apply the incomplete URL flag condition on non-duplicate and unsuccessful
+    # domain extraction rows
+    df["incomplete_url_flag"] = ~df.loc[
+        non_duplicate_rows & domain_extraction_successful, "repourl"
+    ].apply(is_complete_url)
+    df["incomplete_url_flag"] = df["incomplete_url_flag"].astype(bool)
+    incomplete_count = df["incomplete_url_flag"].sum()
+    logger.info(f"Found {incomplete_count} incomplete " f"URLs.")
 
-    # Filter out incomplete URLs using the helper function
-    filtered_df = df[df["repourl"].apply(is_complete_url)]
-    return filtered_df
+    return df
 
 
-def get_base_repo_url(url):
+def get_base_repo_url(df):
     """
-    Extracts the base repository URL from various hosting platforms.
-    Handles URLs ending with '.git', supports nested groups in GitLab,
-    and adapts to different platform URL structures.
+    Extracts the base repository URL from various hosting platforms and logs
+    the process.
+
+    Extracts the base repository URL from various hosting platforms and adds a
+    'base_repo_url_flag' column to indicate success or failure of extraction.
+    Returns None immediately if the dataframe is None or empty. Determines
+    the base path based on the hosting platform and URL structure.
+    Filters DataFrame based on specified conditions (non-duplicate rows,
+    supported URL schemes, and complete URLs). Logs the process and counts
+    the rows with URL extraction issues.
 
     Args:
-      url (str): The full URL to a Git repository.
+       df (pd.DataFrame): DataFrame containing URLs.
 
     Returns:
-      str: The base repository URL if valid, otherwise returns None.
+      pd.DataFrame: The updated DataFrame with 'base_repo_url' and
+      'base_repo_url_flag' columns.
     """
-    # Return None immediately if the URL is None or empty
-    if not url:
+
+    # Return None immediately if the dataframe is None or empty
+    if df.empty:
         return None
 
-    parsed_url = urlparse(url)
-    path = parsed_url.path.strip("/")
+    def extract_url(url):
+        if not url:
+            return None, True  # Return None for URL, True for unsuccessful flag
 
-    parts = path.split("/")
-    print(f"parts: {parts}")
+        parsed_url = urlparse(url)
+        # Strip leading '/' to avoid the first empty string in the list
+        path = parsed_url.path.strip("/")
 
-    # Check if the URL lacks specific repository details(owner/reponame)
-    if len(parts) < 2:
-        return None
+        parts = path.split("/")
+
         # Define platforms that use the complete path without slicing
-    direct_path_platforms = {
-        "gitlab.com",
-        "gitlab.torproject.org",
-        "codeberg.org",
-        "framagit.org",
-        "hydrillabugs.koszko.org",
-        "git.replicant.us",
-        "gerrit.osmocom.org",
-    }
+        direct_path_platforms = {
+            "gitlab.com",
+            "gitlab.torproject.org",
+            "codeberg.org",
+            "framagit.org",
+            "hydrillabugs.koszko.org",
+            "git.replicant.us",
+            "gerrit.osmocom.org",
+            "git.taler.net",
+        }
 
-    # Determine the base path based on the hosting platform
-    if any(host in parsed_url.netloc for host in direct_path_platforms):
-        base_path = "/".join(parts)
-    else:
-        base_path = "/".join(parts[:2])  # Default handling for GitHub-like URLs
+        # Determine the base path based on the hosting platform
+        if any(host in parsed_url.netloc for host in direct_path_platforms):
+            base_path = path  # Use the whole path for these platforms
+        elif len(parts) < 2:
+            return None, True  # URL lacks sufficient parts, flag as unsuccessful
+        else:
+            base_path = "/".join(parts[:2])  # Standard handling for most URLs
 
-    return f"{parsed_url.scheme}://{parsed_url.netloc}/{base_path}"
+        return f"{parsed_url.scheme}://{parsed_url.netloc}/{base_path}", False
+
+    # Filter DataFrame based on specified conditions
+    filtered_rows = (
+        ~df["duplicate_flag"]
+        & ~df["unsupported_url_scheme"]
+        & ~df["incomplete_url_flag"]
+    )
+    results = df.loc[filtered_rows, "repourl"].apply(extract_url)
+
+    # Apply results to the DataFrame
+    df.loc[filtered_rows, "base_repo_url"] = results.apply(lambda x: x[0])
+    df.loc[filtered_rows, "base_repo_url_flag"] = results.apply(lambda x: x[1])
+
+    flagged_count = df["base_repo_url_flag"].sum()
+    logger.info(
+        f"Getting Base Repo URL: Found {flagged_count} rows with URL "
+        f"extraction issues."
+    )
+
+    return df
 
 
 if __name__ == "__main__":
@@ -277,32 +337,28 @@ if __name__ == "__main__":
         f"file and saved in {output_dir} "
     )
 
-    # Some of the URLs end with "/". I need to remove them.
-    df["repourl"] = df["repourl"].str.rstrip("/")
+    # Strip leading '+' characters, then remove trailing slashes, and strip
+    # leading / trailing spaces,
+    df["repourl"] = df["repourl"].str.lstrip("+").str.rstrip("/").str.strip()
 
-    # Removing duplicate rows
-    remove_duplicates(df)
-
-    # Removing null value if any (There is no null values in the data at this
-    # moment)
-    remove_null_values(df)
+    # Marking duplicate rows and Null values
+    df = mark_duplicates(df)
+    df = mark_null_values(df)
 
     # replace http with https
     df["repourl"] = df["repourl"].str.replace(r"^http\b", "https", regex=True)
 
-    # Extract the domain from the URL
-    df["repodomain"] = df["repourl"].str.extract(r"https?://(www\.)?([^/]+)")[1]
+    # Extracts domains from URLs and flags rows with unsupported URL schemes.
+    # unsupported_url_flag: A boolean flag that is True for rows where the
+    # domain extraction returned None
+    df = extract_and_flag_domains(df)
+
+    # Identifies incomplete URLs in the DataFrame by adding a new boolean column
+    # `incomplete_url_flag`.
+    df = mark_incomplete_urls(df)
 
     # Extracting the base repo url
-    df["base_repo_url"] = df["repourl"].apply(get_base_repo_url)
-
-    filter_out_incomplete_urls(df)
-
-    # Remove any rows with invalid URLs
-    df = df[df["base_repo_url"].notna()]
-
-    # Remove any rows with invalid repodomain
-    df = df[df["repodomain"].notna()]
+    df = get_base_repo_url(df)
 
     # Save the dataframe as a CSV file
     df.to_csv(output_dir / "original_massive_df.csv", index=False)

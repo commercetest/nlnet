@@ -1,22 +1,51 @@
-from rdflib import Graph, Literal, URIRef, RDF, Namespace
-from rdflib.namespace import FOAF, XSD, RDFS
-import pandas as pd
+from rdflib import Graph, Literal, URIRef, Namespace
+from rdflib.namespace import XSD
 from loguru import logger
+
+# List of required columns
+REQUIRED_COLUMNS = [
+    # Unique project reference identifier.
+    "projectref",
+    # NLnet project page URL.
+    "nlnetpage",
+    # Repository URL extracted from the project page.
+    "repourl",
+    "duplicate_flag",
+    "null_value_flag",
+    # Extracted domain from the repository URL.
+    "repodomain",
+    # Flag indicating unsupported URL schemes
+    "unsupported_url_scheme",
+    "incomplete_url_flag",
+    # Base repository URL extracted from various hosting platforms.
+    "base_repo_url",
+    # Flag indicating success or failure of base repository URL extraction.
+    "base_repo_url_flag",
+    "testfilecountlocal",
+    # Indicate the success/failure of repository cloning attempt
+    "clone_status",
+    "last_commit_hash",
+    "explanation",
+]
 
 
 def dataframe_to_ttl(df):
     """
-    Converts a pandas DataFrame to TTL RDF format, including additional
+    Converts a pandas DataFrame to Turtle (TTL) RDF format, including additional
     repository details, and logs issues encountered when processing each row.
 
-    Args:
-        df: A pandas DataFrame with columns 'projectref', 'nlnetpage',
-        'repourl', 'testfilecountlocal', and 'last_commit_hash'.
-
-    Returns:
-        A list of strings, each representing the TTL RDF representation of
-        a row.
+    The function processes each row in the DataFrame to generate RDF triples,
+    which are serialised in Turtle format. The DataFrame must include specific
+    columns listed in the REQUIRED_COLUMNS variable. If any required columns
+    are missing, the function raises a ValueError. For each valid row, the
+    function constructs an RDF graph, converts it to Turtle format, and appends
+    the result to a list. Rows with errors are logged and skipped.
     """
+    # Validate the presence of required columns
+    missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+    if missing_columns:
+        raise ValueError(f"DataFrame is missing required columns: {missing_columns}")
+
     ttl_strings = []
     base_uri = "https://nlnet.nl/project/"
     project_namespace = Namespace(base_uri)
@@ -24,45 +53,27 @@ def dataframe_to_ttl(df):
     for index, row in df.iterrows():
         try:
             graph = Graph()
-            project_ref = row["projectref"]
-            nlnet_page = row["nlnetpage"]
-            repo_url = row["repourl"]
-            test_file_count = row["testfilecountlocal"]
-            last_commit_hash = row["last_commit_hash"]
+            subject_uri = URIRef(base_uri + str(row.get("projectref")))
 
-            # Check for necessary data completeness
-            if (
-                pd.isna(project_ref)
-                or pd.isna(nlnet_page)
-                or pd.isna(repo_url)
-                or pd.isna(test_file_count)
-                or pd.isna(last_commit_hash)
-            ):
-                raise ValueError(
-                    "Missing required data fields for RDF " "serialization."
-                )
+            # Create triples for all fields
+            for column in REQUIRED_COLUMNS:
+                value = row.get(column)
+                if value is not None and value != -1:  # Check for valid values
+                    # Using column name as predicate
+                    predicate = project_namespace[column]
+                    if isinstance(value, str) and value.startswith("http"):
+                        graph.add(
+                            (subject_uri, predicate, URIRef(value))
+                        )  # Add as URIRef for URLs
+                    else:
+                        graph.add(
+                            (
+                                subject_uri,
+                                predicate,
+                                Literal(value, datatype=XSD.string),
+                            )
+                        )
 
-            subject_uri = URIRef(base_uri + project_ref)
-            graph.add((subject_uri, RDF.type, FOAF.Project))
-            graph.add((subject_uri, FOAF.homepage, URIRef(nlnet_page)))
-            graph.add((subject_uri, RDFS.seeAlso, URIRef(repo_url)))
-            graph.add(
-                (
-                    subject_uri,
-                    project_namespace.testFileCount,
-                    Literal(test_file_count, datatype=XSD.integer),
-                )
-            )
-            # Add last commit hash
-            graph.add(
-                (
-                    subject_uri,
-                    project_namespace.lastCommitHash,
-                    Literal(last_commit_hash, datatype=XSD.string),
-                )
-            )
-
-            # Serialize the RDF graph to a string in TTL format and add to list
             ttl_strings.append(graph.serialize(format="turtle"))
 
         except Exception as e:
