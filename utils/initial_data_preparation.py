@@ -161,8 +161,8 @@ def mark_incomplete_urls(df):
     Identifies incomplete URLs in the DataFrame.
 
     Identifies incomplete URLs in the DataFrame by adding a new boolean column
-    `incomplete_url_flag`.A URL is considered complete if it contains at
-    least five parts, including the protocol, empty segment (for '//'),
+    `incomplete_url_flag`. A URL is considered complete if it contains at
+    least five parts, including the protocol, an empty segment (for '//'),
     domain, and at least two path segments, e.g.,
     'https://github.com/owner/repo'. Raises an error if the required column
     'repourl' is missing.
