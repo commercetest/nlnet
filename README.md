@@ -104,11 +104,11 @@ genbadge coverage --output-file reports/coverage/coverage-badge.svg
    - 'base_repo_url_flag': Flag indicating success or failure of base repository URL extraction.
 
    #### Usage
-
-       To use this script, you can specify all necessary command line arguments based on your requirements. For example:
-
-       ```bash
-       python initial_data_preparation.py -input-file path/to/input_file.tsv --output-folder path/to/output_directory
+   To use this script, you can specify all necessary command line arguments based on your requirements. For example:
+   ```bash
+   python initial_data_preparation.py -input-file path/to/input_file.tsv
+   --output-folder path/to/output_directory
+   ```
 
 
 2. git_utils.py:
