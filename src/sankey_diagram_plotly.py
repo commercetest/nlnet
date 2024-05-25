@@ -111,6 +111,10 @@ def detect_test_runners(repo_path):
     return runner_details
 
 
+# Experimenting with detect_test_runners2() instead of detect_test_runners()
+# for improved performance. We're still evaluating which function performs
+# better in our specific use case. This change is part of an ongoing
+# experiment to optimise test runner detection.
 def detect_test_runners2(repo_path):
     runner_details = {
         runner: {"dependency_patterns": 0, "config_files": 0, "file_patterns": 0}
