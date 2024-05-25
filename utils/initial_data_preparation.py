@@ -87,8 +87,6 @@ def mark_duplicates(df):
         pd.DataFrame: The DataFrame with an added 'duplicate_flag' column.
     """
 
-    logger.info("Marking duplicate rows.")
-
     # 'duplicate_flag' is `False` for the first occurrence, and it is `True`
     # for the duplicate row
     df["duplicate_flag"] = df.duplicated(keep="first")
