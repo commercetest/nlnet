@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import sys
 import os
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -63,6 +64,25 @@ last commit hashes.
   filenames.
 - --ttl-file: Path to save the Turtle (TTL) format file.
 """
+
+test_runners = {
+    "JUnit": {
+        "dependency_patterns": ["org.junit.jupiter:junit-jupiter", "junit:junit"],
+        "config_files": ["pom.xml", "build.gradle"],
+        "file_patterns": [".*Test.java"],
+    },
+    "pytest": {
+        "dependency_patterns": [],
+        "config_files": ["pytest.ini", "tox.ini", "pyproject.toml"],
+        "file_patterns": ["test_.*.py", ".*_test.py"],
+    },
+    "Mocha": {
+        "dependency_patterns": ["mocha"],
+        "config_files": ["package.json", ".mocharc.json", ".mocharc.js"],
+        "file_patterns": ["test/.*.js"],
+    },
+}
+
 
 EXPECTED_URL_PARTS = 5
 
@@ -224,6 +244,78 @@ def add_explanations(df):
     return df
 
 
+def detect_test_runners(repo_path):
+    """
+    Scans the specified repository path to identify test runners based on
+    predefined dependency patterns, configuration files, and file patterns.
+    Returns a dictionary summarising the presence of each test runner.
+    """
+    runner_details = {
+        runner: {"dependency_patterns": 0, "config_files": 0, "file_patterns": 0}
+        for runner in test_runners
+    }
+
+    for root, dirs, files in os.walk(repo_path):
+        for runner, indicators in test_runners.items():
+            # Check for configuration files
+            for config_file in indicators["config_files"]:
+                if config_file in files:
+                    runner_details[runner]["config_files"] += 1
+
+            # Check for file patterns
+            for pattern in indicators["file_patterns"]:
+                matching_files = [file for file in files if re.match(pattern, file)]
+                runner_details[runner]["file_patterns"] += len(matching_files)
+
+            # Check for dependencies in the relevant configuration files
+            for dep_pattern in indicators["dependency_patterns"]:
+                for file in files:
+                    if file in indicators["config_files"]:
+                        path = os.path.join(root, file)
+                        if os.path.exists(path):
+                            with open(path, "r") as file_content:
+                                content = file_content.read()
+                                if dep_pattern in content:
+                                    runner_details[runner]["dependency_patterns"] += 1
+
+    return runner_details
+
+
+# Experimenting with detect_test_runners2() instead of detect_test_runners()
+# for improved performance. We're still evaluating which function performs
+# better in our specific use case. This change is part of an ongoing
+# experiment to optimise test runner detection.
+def detect_test_runners2(repo_path):
+    runner_details = {
+        runner: {"dependency_patterns": 0, "config_files": 0, "file_patterns": 0}
+        for runner in test_runners
+    }
+    # typically, dependency declarations are located within specific
+    # configuration files rather than scattered throughout various types of
+    # files in a repository. That's why the check for dependency_patterns is
+    # nested inside the loop that finds and processes these configuration files.
+    for root, dirs, files in os.walk(repo_path):
+        for runner, indicators in test_runners.items():
+            # Check for configuration files
+            for config_file in indicators["config_files"]:
+                if config_file in files:
+                    runner_details[runner]["config_files"] += 1
+                    # If the config file is found, read it once and check for dependencies
+                    path = os.path.join(root, config_file)
+                    with open(path, "r") as file_content:
+                        content = file_content.read()
+                        for dep_pattern in indicators["dependency_patterns"]:
+                            if dep_pattern in content:
+                                runner_details[runner]["dependency_patterns"] += 1
+
+            # Check for file patterns
+            for pattern in indicators["file_patterns"]:
+                matching_files = [file for file in files if re.match(pattern, file)]
+                runner_details[runner]["file_patterns"] += len(matching_files)
+
+    return runner_details
+
+
 if __name__ == "__main__":
     args = parse_args()
     input_file = args.input_file
@@ -261,6 +353,17 @@ if __name__ == "__main__":
             df["clone_status"] = None  # Initialise the clone status column
             df["testfilecountlocal"] = -1  # Initialise if first run
             df["last_commit_hash"] = None
+            logger.info(f"Creating and initialising columns : {test_runners.keys()}")
+            for runner in test_runners.keys():
+                df[f"{runner}_dependency_patterns"] = 0
+                df[f"{runner}_config_files"] = 0
+                df[f"{runner}_file_patterns"] = 0
+
+            logger.info(
+                'Counting test runner files matching "dependency_patterns", '
+                '"config_files", "file_patterns" and saving the values in the '
+                "respective columns"
+            )
         else:
             logger.error(
                 f"The input file has not been found at {csv_file_path}. Exiting..."
@@ -377,6 +480,16 @@ if __name__ == "__main__":
                     f"Test file names for the repo `{repo_name}`"
                     f" has been written to '{test_file_list_path}'"
                 )
+
+            # Detecting and analysing test runners
+            runner_presence = detect_test_runners2(clone_dir)
+
+            for runner, details in runner_presence.items():
+                df.at[index, f"{runner}_dependency_patterns"] = details[
+                    "dependency_patterns"
+                ]
+                df.at[index, f"{runner}_config_files"] = details["config_files"]
+                df.at[index, f"{runner}_file_patterns"] = details["file_patterns"]
 
             processed_count += 1
 
