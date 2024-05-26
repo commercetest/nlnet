@@ -13,6 +13,7 @@ from utils.git_utils import get_working_directory_or_git_root
 from utils.export_to_rdf import dataframe_to_ttl
 from utils.string_utils import sanitise_directory_name
 
+
 """
 This script automates the process of cloning GitHub repositories listed in a
 CSV file, retrieves the last commit hash for each repository, and saves this
@@ -359,11 +360,6 @@ if __name__ == "__main__":
                 df[f"{runner}_config_files"] = 0
                 df[f"{runner}_file_patterns"] = 0
 
-            logger.info(
-                'Counting test runner files matching "dependency_patterns", '
-                '"config_files", "file_patterns" and saving the values in the '
-                "respective columns"
-            )
         else:
             logger.error(
                 f"The input file has not been found at {csv_file_path}. Exiting..."
@@ -391,6 +387,7 @@ if __name__ == "__main__":
             # an issue extracting the repository domain,
             # URL lacks specific repository details(owner/reponame),
             # or there was a problem extracting the base repository URL.
+
             if (
                 row["duplicate_flag"] is True
                 or row["unsupported_url_scheme"] is True
@@ -482,6 +479,11 @@ if __name__ == "__main__":
                 )
 
             # Detecting and analysing test runners
+            logger.info(
+                'Counting test runner files matching "dependency_patterns", '
+                '"config_files", "file_patterns" and saving the values in the '
+                "respective columns"
+            )
             runner_presence = detect_test_runners2(clone_dir)
 
             for runner, details in runner_presence.items():
