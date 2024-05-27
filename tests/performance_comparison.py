@@ -1,11 +1,13 @@
-import pandas as pd
+import argparse
 from pathlib import Path
-from utils.measure_performance import measure_performance, performance_records
+
+import pandas as pd
+from loguru import logger
+
 from src.github_repo_request_local import detect_test_runners, detect_test_runners2
 from utils.git_utils import get_working_directory_or_git_root
+from utils.measure_performance import measure_performance, performance_records
 from utils.string_utils import sanitise_directory_name
-from loguru import logger
-import argparse
 
 
 def parse_args():
@@ -23,10 +25,24 @@ def parse_args():
         help="Defaults to a subdirectory within the project's data folder.",
     )
     parser.add_argument(
-        "--output-file",
+        "--output-file1",
         type=str,
-        default=str(Path("data/performance_comparison.csv")),
-        help="Path to the output CSV file.",
+        default=str(Path("data/performance_df1.csv")),
+        help="Path to the dataframe file created by the first function(detect_"
+        "test_runners).",
+    )
+    parser.add_argument(
+        "--output-file2",
+        type=str,
+        default=str(Path("data/performance_df2.csv")),
+        help="Path to the dataframe file created by the second function(detect_"
+        "test_runners2).",
+    )
+    parser.add_argument(
+        "--output-file3",
+        type=str,
+        default=str(Path("data/combined_performance_comparison.csv")),
+        help="Path to the combined dataframe CSV file.",
     )
     parser.add_argument(
         "--input-file",
@@ -53,19 +69,23 @@ def analyse_with_test_runner(df, test_runner_function, repo_root):
         # Measure the performance of the test runner function
         _ = measure_performance(test_runner_function, clone_dir)
 
-        # Now pull the latest entry from performance_records which contains the performance details
-        latest_performance_record = (
-            performance_records[-1] if performance_records else {}
-        )
-
-        performance_data.append(
-            {
-                "repo_url": repo_url,
-                "performance": latest_performance_record,
-                "test_runner_used": test_runner_function.__name__,
-            }
-        )
-
+        # Now pull the latest entry from performance_records which contains the
+        # performance details
+        if performance_records:
+            latest_performance = performance_records[-1]
+            performance_data.append(
+                {
+                    "repo_url": repo_url,
+                    "execution_time": latest_performance.get("execution_time", "N/A"),
+                    "memory_used_MB": latest_performance.get("memory_used", "N/A"),
+                    "cpu_usage_user": latest_performance.get("cpu_usage_user", "N/A"),
+                    "cpu_usage_system": latest_performance.get(
+                        "cpu_usage_system", "N/A"
+                    ),
+                    "cpu_usage_idle": latest_performance.get("cpu_usage_idle", "N/A"),
+                    "test_runner_used": test_runner_function.__name__,
+                }
+            )
     # Convert performance data to a DataFrame and return it
     performance_df = pd.DataFrame(performance_data)
     return performance_df
@@ -73,8 +93,9 @@ def analyse_with_test_runner(df, test_runner_function, repo_root):
 
 args = parse_args()
 input_file = args.input_file
-output_file = args.output_file
-
+output_file1 = args.output_file1
+output_file2 = args.output_file2
+combined_df_file = args.output_file3
 repo_root = get_working_directory_or_git_root()
 logger.info(f"repo_root is: {repo_root}")
 
@@ -82,12 +103,28 @@ df = pd.read_csv(repo_root / input_file)
 
 logger.info("Performance analysis using the function: detect_test_runners ")
 performance_df1 = analyse_with_test_runner(df, detect_test_runners, repo_root)
+performance_df1.to_csv(repo_root / output_file1, index=False)
+logger.info(
+    f"Performance analysis result(performance_df1.csv) using the function "
+    f"`detect_test_runners` is saved in {repo_root / output_file1}"
+)
 
 logger.info("Performance analysis using the function: detect_test_runners2 ")
 performance_df2 = analyse_with_test_runner(df, detect_test_runners2, repo_root)
+performance_df2.to_csv(repo_root / output_file2, index=False)
+logger.info(
+    f"Performance analysis result(performance_df2.csv) using the function"
+    f" `detect_test_runners2` is saved in {repo_root / output_file2}"
+)
+
 
 # Optionally, combine and save the performance data
 combined_performance_df = pd.concat(
     [performance_df1, performance_df2], ignore_index=True
 )
-combined_performance_df.to_csv(repo_root / args.output_file, index=False)
+combined_performance_df.to_csv(repo_root / args.output_file3, index=False)
+logger.info(
+    f"Concatenated dataframes produced by analysing the performance of "
+    f"functions `detect_test_runners` and `detect_test_runners2` is saved in"
+    f" {repo_root / args.output_file3}"
+)
