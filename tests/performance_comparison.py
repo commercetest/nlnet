@@ -1,3 +1,25 @@
+"""
+This script is designed to analyse the performance of two different test
+runner functions on a set of GitHub repositories. It utilises multiple
+command-line parameters to manage input and output data paths and conducts
+performance analysis using specified test runner functions.
+
+The script processes a CSV file containing repository URLs, applies the test
+runner functions to measure performance metrics such as execution time, memory
+usage, and CPU usage, and then saves these metrics into separate CSV files.
+Additionally, it combines all the metrics into a single CSV for a comprehensive
+view.
+
+Returns:
+    pd.DataFrame: DataFrame containing performance metrics for each repository.
+
+Example Usage:
+    python script_name.py --input-file data/repositories.csv
+    --clone-dir path/to/clone --output-file1 path/to/output1.csv
+    --output-file2 path/to/output2.csv
+    --output-file3 path/to/combined_output.csv
+"""
+
 import argparse
 from pathlib import Path
 
@@ -55,6 +77,18 @@ def parse_args():
 
 
 def analyse_with_test_runner(df, test_runner_function, repo_root):
+    """
+    Analyses the performance of a specified test runner function applied to
+    each repository described in the DataFrame. It records performance metrics
+    and returns them in a new DataFrame.
+
+    Parameters:
+        df (pd.DataFrame): DataFrame containing repositories' data.
+        test_runner_function (Callable): Function to be applied for
+        performance analysis.
+        repo_root (Path): Root directory for cloning repositories.
+
+    """
     performance_data = []
 
     for index, row in df.iterrows():
