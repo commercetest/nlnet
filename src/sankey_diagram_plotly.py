@@ -120,6 +120,13 @@ def prepare_sankey_data(df):
     ).astype(int)
 
     def add_node(node_enum):
+        """
+        Add a node to the Sankey graph.
+        This function creates a node for the Sankey graph and assigns it a
+        unique identifier.
+        If the input is an Enum, it extracts the Enum's value; otherwise, it
+        uses the input string directly.
+        """
         nonlocal counter
         # Check if the input is an Enum, extract value; if not, use the string directly
         node_value = node_enum.value if isinstance(node_enum, Enum) else node_enum
