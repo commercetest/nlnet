@@ -1,6 +1,10 @@
 import pytest
-from utils.initial_data_preparation import mark_incomplete_urls, get_base_repo_url
 import pandas as pd
+from utils.initial_data_preparation import (
+    mark_incomplete_urls,
+    get_base_repo_url,
+    extract_and_flag_domains,
+)
 
 
 def test_get_base_repo_url():
@@ -79,11 +83,25 @@ def test_get_base_repo_url():
         assert expected == actual, f"Expected {expected}, got {actual}"
 
 
+#  Writing test cases for the function `mark_incomplete_urls`
+def test_missing_repourl_column_raises_error():
+    # Create a DataFrame without the 'repourl' column
+    data = {"some_other_column": ["https://github.com/owner/repo"]}
+    df = pd.DataFrame(data)
+
+    # Expect a ValueError to be raised due to the missing 'repourl' column
+    with pytest.raises(ValueError) as exc_info:
+        mark_incomplete_urls(df)
+
+    # Check that the error message is as expected
+    assert (
+        str(exc_info.value) == "DataFrame must contain a 'repourl' column."
+    ), "Error message does not match the expected output."
+
+
 @pytest.mark.parametrize(
-    "data, expected_length, expected_urls",
+    "data, expected_flags",
     [
-        # Test with an empty DataFrame
-        ({"repourl": []}, 0, []),
         # DataFrame with various types of URLs including None and empty strings
         (
             {
@@ -92,116 +110,99 @@ def test_get_base_repo_url():
                     None,
                     "https://github.com/owner",
                     "",
-                ]
-            },
-            1,
-            ["https://github.com/owner/repo"],
-        ),
-        # All valid URLs
-        (
-            {
-                "repourl": [
-                    "https://github.com/owner1/repo",
-                    "https://github.com/owner2/repo2",
-                ]
-            },
-            2,
-            ["https://github.com/owner1/repo", "https://github.com/owner2/repo2"],
-        ),
-        # All incomplete URLs
-        ({"repourl": ["https://github.com/owner", "https://github.com"]}, 0, []),
-        # Mixed completeness in URLs
-        (
-            {"repourl": ["https://github.com/owner/repo", "https://github.com/owner"]},
-            1,
-            ["https://github.com/owner/repo"],
-        ),
-    ],
-)
-def test_filter_incomplete_urls(data, expected_length, expected_urls):
-    df = pd.DataFrame(data)
-    result = mark_incomplete_urls(df)
-    assert len(result) == expected_length, (
-        "The number of returned rows does not match " "the expected value."
-    )
-    for url in expected_urls:
-        assert url in result["repourl"].values, f"{url} should be in the " f"result set"
-
-
-@pytest.mark.parametrize(
-    "data, expected_length",
-    [
-        # Testing different data types
-        (
-            {
-                "repourl": [
-                    None,
-                    "https://github.com/owner/repo",
                     12345,
                     987.654,
                     True,
                     pd.Timestamp("20230101"),
-                ]
+                    # Expected to be flagged as incomplete
+                ],
+                "duplicate_flag": [
+                    False,
+                    False,
+                    False,
+                    False,
+                    False,
+                    False,
+                    False,
+                    False,
+                ],
+                "unsupported_url_scheme": [
+                    False,
+                    False,
+                    False,
+                    False,
+                    False,
+                    False,
+                    False,
+                    False,
+                ],
             },
-            1,
+            [False, True, True, True, True, True, True, True],
         ),
-        # Test with all entries being non-string types
-        ({"repourl": [12345, 67890, False, pd.Timestamp("20240101"), 987.654]}, 0),
-        # Test with mixed valid URLs and non-string types
+        # All incomplete URLs
+        (
+            {
+                "repourl": ["https://github.com/owner", "https://github.com"],
+                "duplicate_flag": [False, False],
+                "unsupported_url_scheme": [False, False],
+            },
+            [True, True],
+        ),
+        # Test with unsupported URL schemes
         (
             {
                 "repourl": [
+                    "ftp://github.com/owner/repo",
                     "https://github.com/owner/repo",
-                    "https://github.com/owner/repo2",
-                    12345,
-                    "",
-                ]
+                ],
+                "duplicate_flag": [False, False],
+                "unsupported_url_scheme": [True, False],
             },
-            2,
+            [True, False],
         ),
     ],
 )
-def test_filter_urls_with_various_data_types(data, expected_length):
+def test_mark_incomplete_urls(data, expected_flags):
     df = pd.DataFrame(data)
     result = mark_incomplete_urls(df)
-    assert len(result) == expected_length, (
-        "The number of returned rows does " "not match the expected value."
-    )
-    if expected_length > 0:
-        for url in result["repourl"]:
-            assert isinstance(url, str), (
-                "All returned 'repourl' values should " "be strings."
-            )
+    assert (
+        list(result["incomplete_url_flag"]) == expected_flags
+    ), "The incomplete URL flags do not match expected results."
 
 
 @pytest.mark.parametrize(
-    "url, is_valid",
+    "url, duplicate_flag, unsupported_url_scheme, expected_flag",
     [
-        # Properly formatted URL with a query string, follows the correct
-        # structure for HTTP URLs including parameters.
-        ("https://example.com/over/there?name=ferret", True),
-        # Single quotes are unsafe and should be encoded; Potentially
-        # problematic or unsafe
-        ("http://example.com/special'chars", False),
-        # Angle brackets are invalid in URLs unless encoded because they could
-        # be misinterpreted as HTML tags, so this is False. Invalid characters
-        # in domain
-        ("http://<notvalid>.com", False),
-        # Not a HTTP/HTTPS URL
-        ("ftp://example.com/resource", False),
-        # Contains an unencoded space, which can cause issues in URL parsing
-        # and is generally not secure or standard, resulting in False.
-        ("https://example.com/sub dir", False),
-        # Includes unencoded double quotes, which are unsafe and should be
-        # encoded in URLs to prevent breaking out of URL contexts in HTML or
-        # JavaScript, therefore False.
-        ('https://example.com/"quotes"', False),  # Quotes not encoded
+        # Properly formatted URL with a query string, follows the complete
+        # structure including parameters. The presence of a query does not
+        # affect completeness.
+        ("https://example.com/over/there?name=ferret", False, False, False),
+        # URL contains special characters but still has the necessary parts.
+        ("http://example.com/owner/special'chars", False, False, False),
+        ("http://example.com/owner/repo<abcde>", False, True, True),
+        # FTP URL; not HTTP/HTTPS but has the necessary structure for
+        # completeness.
+        ("ftp://example.com/owner/resource", False, True, True),
+        # Contains an unencoded space, but still structured correctly.
+        ("https://example.com/owner/sub dir", False, False, False),
+        # Includes unencoded double quotes, but structured with necessary parts.
+        ('https://example.com/owner/"quotes"', False, False, False),
     ],
 )
-def test_url_with_special_characters(url, is_valid):
-    df = pd.DataFrame({"repourl": [url]})
+def test_url_completeness_with_special_characters(
+    url, duplicate_flag, unsupported_url_scheme, expected_flag
+):
+    df = pd.DataFrame(
+        {
+            "repourl": [url],
+            "duplicate_flag": [duplicate_flag],
+            "unsupported_url_scheme": [unsupported_url_scheme],
+        }
+    )
     result = mark_incomplete_urls(df)
-    assert (len(result) == 1) == is_valid, f"URL '{url}' validation failed."
+    assert (
+        result["incomplete_url_flag"].iloc[0] == expected_flag
+    ), f"Completeness check for URL '{url}' failed."
 
 
 @pytest.mark.parametrize(
@@ -215,3 +216,61 @@ def test_filter_incomplete_urls_exceptions(data, expected_exception):
     df = pd.DataFrame(data)
     with pytest.raises(expected_exception):
         mark_incomplete_urls(df)
+
+
+# Writing test cases for the function `extract_and_flag_domains`
+@pytest.mark.parametrize(
+    "data, expected_domains, expected_flags",
+    [
+        # Test with various supported and unsupported URL schemes
+        (
+            {
+                "repourl": [
+                    "https://github.com/openai",
+                    "http://example.com",
+                    "git://example.org/repo.git",
+                    "ftp://example.net/resource",
+                    "smb://fileserver/home",
+                ],
+                "duplicate_flag": [False, False, False, False, False],
+            },
+            [
+                pd.NA if domain is None else domain
+                for domain in ["github.com", "example.com", "example.org", None, None]
+            ],
+            [False, False, False, True, True],
+        ),
+        # Test with a mix of duplicate and non-duplicate entries
+        (
+            {
+                "repourl": [
+                    "https://github.com/ownwe/openai",
+                    # ftp is not a list of accepted schemes ["http", "https",
+                    # "git"]
+                    "ftp://example.net/owner/resource",
+                    "https://github.com/owner/openai",
+                    "git://example.org/repo.git",
+                ],
+                "duplicate_flag": [False, False, True, False],
+            },
+            [
+                pd.NA if domain is None else domain
+                for domain in ["github.com", None, None, "example.org"]
+            ],  # Expect None for the
+            # duplicate as it's not processed
+            [False, True, True, False],
+            # Duplicates are ignored for processing
+        ),
+    ],
+)
+def test_extract_and_flag_domains(data, expected_domains, expected_flags):
+    df = pd.DataFrame(data)
+    result = extract_and_flag_domains(df)
+    pd.testing.assert_series_equal(
+        result["repodomain"],
+        pd.Series(expected_domains, dtype="object"),
+        check_names=False,
+    )
+    assert (
+        list(result["unsupported_url_scheme"]) == expected_flags
+    ), "Unsupported URL scheme flagging failed."
