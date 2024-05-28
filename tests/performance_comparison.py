@@ -33,11 +33,9 @@ from utils.string_utils import sanitise_directory_name
 
 
 def parse_args():
-    """Parse command line arguments for excluded extensions and clone
-    directory, and other options."""
-    parser = argparse.ArgumentParser(
-        description="Clone GitHub repositories and count " "test files."
-    )
+    """Parse command line arguments for clone directory, input and output files,
+    and other options."""
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--clone-dir",
         type=str,
