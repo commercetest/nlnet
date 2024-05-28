@@ -254,7 +254,8 @@ def prepare_sankey_data(df):
     # For each runner, calculate the number of repositories that primarily use
     # it
     logger.info(
-        "For each runner, calculate the number of repositories that primarily" " use it"
+        "For each runner, calculate the number of repositories that "
+        "primarily uses it."
     )
 
     for runner_enum in [Node.JUNIT, Node.PYTEST, Node.MOCHA]:
@@ -333,7 +334,7 @@ logger.info(f"Beginning_clone_dir: {beginning_clone_dir}")
 
 node_dict, sources, targets, values = prepare_sankey_data(df)
 
-# Visualize the Sankey Diagram including the Duplicates layer
+# Visualise the Sankey Diagram including the Duplicates layer
 fig = go.Figure(
     data=[
         go.Sankey(
