@@ -55,13 +55,15 @@ def test_get_base_repo_url():
                 "https://hydrillabugs.koszko.org/projects/haketilo/repository",
                 "https://git.replicant.us/replicant",
                 "https://gerrit.osmocom.org/plugins/gitiles/ims",
+                "http://git.savannah.gnu.org/cgit/gnucap.git",
             ],
-            "duplicate_flag": [False] * 23,
-            "unsupported_url_scheme": [False] * 23,
-            "incomplete_url_flag": [False] * 23,
+            "duplicate_flag": [False] * 24,
+            "unsupported_url_scheme": [False] * 24,
+            "incomplete_url_flag": [False] * 24,
         }
     )
-    data.loc[10:11, "unsupported_url_scheme"] = True  # Invalid URL formats
+    data.loc[10:11, "unsupported_url_scheme"] = True  # Invalid URL formats.
+    # Align with the entries "just-a-string", and "http:///a-bad-url.com"
 
     # Run the function
     result_df = get_base_repo_url(data)
@@ -91,6 +93,7 @@ def test_get_base_repo_url():
         "https://hydrillabugs.koszko.org/projects/haketilo/repository",
         "https://git.replicant.us/replicant",
         "https://gerrit.osmocom.org/plugins/gitiles/ims",
+        "http://git.savannah.gnu.org/cgit/gnucap.git",
     ]
 
     # Checking results
