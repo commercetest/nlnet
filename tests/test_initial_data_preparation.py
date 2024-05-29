@@ -122,6 +122,10 @@ def test_missing_repourl_column_raises_error():
     ), "Error message does not match the expected output."
 
 
+# A URL is considered complete (incomplete_url_flag would be False) if it
+# contains at least five parts, including the protocol, an empty segment
+# (for '//'),domain, and at least two path segments, e.g.,
+# 'https://github.com/owner/repo'
 @pytest.mark.parametrize(
     "data, expected_flags",
     [
@@ -129,12 +133,26 @@ def test_missing_repourl_column_raises_error():
         (
             {
                 "repourl": [
+                    # Expected to be flagged as complete(False) as it has all
+                    # the required 5 parts
                     "https://github.com/owner/repo",
+                    # Expected to be flagged as incomplete(True) as it has none
+                    # of the required 5 parts
                     None,
+                    # Expected to be flagged as incomplete(True) as it misses
+                    # 1 part (repository name)
                     "https://github.com/owner",
+                    # Expected to be flagged as incomplete(True) as it does not
+                    # have all the required 5 parts
                     "",
+                    # Expected to be flagged as incomplete(True) as it does not
+                    # have the required 5 parts
                     12345,
+                    # Expected to be flagged as incomplete(True) as it does not
+                    # have the required 5 parts
                     987.654,
+                    # Expected to be flagged as incomplete(True) as it does not
+                    # have the required 5 parts
                     True,
                     pd.Timestamp("20230101"),
                     # Expected to be flagged as incomplete
@@ -186,11 +204,6 @@ def test_missing_repourl_column_raises_error():
     ],
 )
 def test_mark_incomplete_urls(data, expected_flags):
-    """Ensures URLs are correctly flagged as incomplete or supported based on
-    their structure. A URL is considered complete if it contains at
-    least five parts, including the protocol, an empty segment (for '//'),
-    domain, and at least two path segments, e.g.,
-    'https://github.com/owner/repo'."""
     df = pd.DataFrame(data)
     result = mark_incomplete_urls(df)
     assert (
