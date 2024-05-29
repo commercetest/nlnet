@@ -127,7 +127,7 @@ def test_missing_repourl_column_raises_error():
 # (for '//'),domain, and at least two path segments, e.g.,
 # 'https://github.com/owner/repo'
 @pytest.mark.parametrize(
-    "data, expected_flags",
+    "data, expected_flag",
     [
         # DataFrame with various types of URLs including None and empty strings
         (
@@ -203,11 +203,11 @@ def test_missing_repourl_column_raises_error():
         ),
     ],
 )
-def test_mark_incomplete_urls(data, expected_flags):
+def test_mark_incomplete_urls(data, expected_flag):
     df = pd.DataFrame(data)
     result = mark_incomplete_urls(df)
     assert (
-        list(result["incomplete_url_flag"]) == expected_flags
+        list(result["incomplete_url_flag"]) == expected_flag
     ), "The incomplete URL flags do not match expected results."
 
 
@@ -289,8 +289,7 @@ def test_filter_incomplete_urls_exceptions(data, expected_exception):
             {
                 "repourl": [
                     "https://github.com/ownwe/openai",
-                    # ftp is not a list of accepted schemes ["http", "https",
-                    # "git"]
+                    # Accepted schemes are: "http", "https", and "git"
                     "ftp://example.net/owner/resource",
                     "https://github.com/owner/openai",
                     "git://example.org/repo.git",
