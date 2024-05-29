@@ -1,3 +1,20 @@
+"""
+This script contains a suite of tests for URL processing functions within a
+data preparation utility.
+These functions are designed to manage, validate, and transform repository URLs
+from a dataset. Tests cover the following functionalities:
+
+1. `get_base_repo_url`: Extracts the base repository URL from a more complex
+URL structure.
+2. `mark_incomplete_urls`: Flags URLs based on their completeness and the
+presence of unsupported URL schemes.
+3. `extract_and_flag_domains`: Extracts domains from URLs and flags unsupported
+ URL schemes.
+
+Each function uses Pytest for setting up test conditions and checking the
+assertions.
+"""
+
 import pytest
 import pandas as pd
 from utils.initial_data_preparation import (
@@ -8,6 +25,8 @@ from utils.initial_data_preparation import (
 
 
 def test_get_base_repo_url():
+    """Verifies that the base repository URL is correctly extracted from a set
+    of test URLs."""
     # Test data setup
     data = pd.DataFrame(
         {
@@ -85,6 +104,7 @@ def test_get_base_repo_url():
 
 #  Writing test cases for the function `mark_incomplete_urls`
 def test_missing_repourl_column_raises_error():
+    """Checks that a ValueError is raised if the 'repourl' column is missing."""
     # Create a DataFrame without the 'repourl' column
     data = {"some_other_column": ["https://github.com/owner/repo"]}
     df = pd.DataFrame(data)
@@ -163,6 +183,11 @@ def test_missing_repourl_column_raises_error():
     ],
 )
 def test_mark_incomplete_urls(data, expected_flags):
+    """Ensures URLs are correctly flagged as incomplete or supported based on
+    their structure. A URL is considered complete if it contains at
+    least five parts, including the protocol, an empty segment (for '//'),
+    domain, and at least two path segments, e.g.,
+    'https://github.com/owner/repo'."""
     df = pd.DataFrame(data)
     result = mark_incomplete_urls(df)
     assert (
@@ -192,6 +217,7 @@ def test_mark_incomplete_urls(data, expected_flags):
 def test_url_completeness_with_special_characters(
     url, duplicate_flag, unsupported_url_scheme, expected_flag
 ):
+    """Tests URL completeness check with special characters and schemes."""
     df = pd.DataFrame(
         {
             "repourl": [url],
@@ -213,6 +239,8 @@ def test_url_completeness_with_special_characters(
     ],
 )
 def test_filter_incomplete_urls_exceptions(data, expected_exception):
+    """Verifies that the correct exception is raised for dataframes lacking
+    'repourl'."""
     df = pd.DataFrame(data)
     with pytest.raises(expected_exception):
         mark_incomplete_urls(df)
@@ -264,6 +292,8 @@ def test_filter_incomplete_urls_exceptions(data, expected_exception):
     ],
 )
 def test_extract_and_flag_domains(data, expected_domains, expected_flags):
+    """Confirms that domain extraction and flagging for unsupported schemes are
+    accurate."""
     df = pd.DataFrame(data)
     result = extract_and_flag_domains(df)
     pd.testing.assert_series_equal(
