@@ -178,6 +178,7 @@ def test_missing_repourl_column_raises_error():
                     False,
                 ],
             },
+            # A `True` flags represents an incomplete URL
             [False, True, True, True, True, True, True, True],
         ),
         # All incomplete URLs
