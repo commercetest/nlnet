@@ -82,13 +82,13 @@ class TestIsCompleteURL(unittest.TestCase):
 # Tests for the function `extract_url`
 class TestExtractURL(unittest.TestCase):
     def test_empty_input(self):
-        result, flag = extract_url("")
+        result, extraction_failed = extract_url("")
         assert_that(result, is_(None))
-        assert_that(flag, is_(True))
+        assert_that(extraction_failed, is_(True))
 
-        result, flag = extract_url(None)
+        result, extraction_failed = extract_url(None)
         assert_that(result, is_(None))
-        assert_that(flag, is_(True))
+        assert_that(extraction_failed, is_(True))
 
     def direct_path_platforms(self):
         # Test URLs from specific platforms that require using the
@@ -100,29 +100,31 @@ class TestExtractURL(unittest.TestCase):
         ]
         for url in direct_path_urls:
             with self.subTest(url=url):
-                result, flag = extract_url(url)
+                result, extraction_failed = extract_url(url)
                 assert_that(result, equal_to(url))
-                assert_that(flag, is_(False))
+                assert_that(extraction_failed, is_(False))
 
     def test_standard_path_slicing(self):
         # Test standard URL handling
-        result, flag = extract_url("https://github.com/user/project")
+        result, extraction_failed = extract_url("https://github.com/user/project")
         assert_that(result, is_("https://github.com/user/project"))
-        assert_that(flag, is_(False))
+        assert_that(extraction_failed, is_(False))
 
-        result, flag = extract_url("https://example.com/deeply/nested/path")
+        result, extraction_failed = extract_url(
+            "https://example.com/deeply/nested/path"
+        )
         assert_that(result, is_("https://example.com/deeply/nested"))
-        assert_that(flag, is_(False))
+        assert_that(extraction_failed, is_(False))
 
     def test_insufficient_path_parts(self):
         # Test URLs with insufficient path parts
-        result, flag = extract_url("https://example.com/")
+        result, extraction_failed = extract_url("https://example.com/")
         assert_that(result, is_(None))
-        assert_that(flag, is_(True))
+        assert_that(extraction_failed, is_(True))
 
-        result, flag = extract_url("https://justadomain.com")
+        result, extraction_failed = extract_url("https://justadomain.com")
         assert_that(result, is_(None))
-        assert_that(flag, is_(True))
+        assert_that(extraction_failed, is_(True))
 
 
 # Tests for the function `convert_http_to_https`
