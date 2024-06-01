@@ -178,7 +178,7 @@ def test_missing_repourl_column_raises_error():
                     False,
                 ],
             },
-            # A `True` flags represents an incomplete URL
+            # A `True` flag represents an incomplete URL
             [False, True, True, True, True, True, True, True],
         ),
         # All incomplete URLs
@@ -283,6 +283,8 @@ def test_filter_incomplete_urls_exceptions(data, expected_exception):
                 pd.NA if domain is None else domain
                 for domain in ["github.com", "example.com", "example.org", None, None]
             ],
+            # Accepted schemes are: "http", "https", and "git". A `True`
+            # flag represent unsupported scheme(`ftp` and `smb`).
             [False, False, False, True, True],
         ),
         # Test with a mix of duplicate and non-duplicate entries
@@ -300,8 +302,9 @@ def test_filter_incomplete_urls_exceptions(data, expected_exception):
             [
                 pd.NA if domain is None else domain
                 for domain in ["github.com", None, None, "example.org"]
-            ],  # Expect None for the
-            # duplicate as it's not processed
+            ],  # Expect None for the duplicate as it's not processed
+            # It is `True` for duplicate rows and unsupported schemes (`ftp`)
+            # where domain could not be extracted.
             [False, True, True, False],
             # Duplicates are ignored for processing
         ),
