@@ -97,7 +97,7 @@ def mark_duplicates(df):
     return df
 
 
-def mark_null_values(d):
+def mark_null_values(df):
     """
     Mark rows with null values in the DataFrame.
 
@@ -120,6 +120,14 @@ def mark_null_values(d):
     return df
 
 
+def get_domain(url):
+    parsed_url = urlparse(url)
+    if parsed_url.scheme in ["http", "https", "git"]:
+        return parsed_url.hostname
+    else:
+        return None
+
+
 # Define a function to extract domain and flag errors
 def extract_and_flag_domains(df):
     """
@@ -131,13 +139,6 @@ def extract_and_flag_domains(df):
     Returns:
         pd.DataFrame: Updated DataFrame with 'repodomain' and 'unsupported_url_scheme' columns.
     """
-
-    def get_domain(url):
-        parsed_url = urlparse(url)
-        if parsed_url.scheme in ["http", "https", "git"]:
-            return parsed_url.hostname
-        else:
-            return None
 
     # Apply the domain extraction function on non-duplicate rows
     non_duplicate_rows = ~df["duplicate_flag"]  # Identify non-duplicate rows
@@ -154,6 +155,15 @@ def extract_and_flag_domains(df):
     logger.info(f"Found {unsupported_count} rows with unsupported domains")
 
     return df
+
+
+def is_complete_url(url):
+    # Check if the url is not a string
+    if not isinstance(url, str):
+        return False
+    # Example url: https://github.com/owner/repo
+    parts = url.split("/")
+    return len(parts) >= EXPECTED_URL_PARTS
 
 
 def mark_incomplete_urls(df):
@@ -183,15 +193,6 @@ def mark_incomplete_urls(df):
         )
         raise ValueError("DataFrame must contain a 'repourl' column.")
 
-    # Helper function to determine if a URL is complete
-    def is_complete_url(url):
-        # Check if the url is not a string
-        if not isinstance(url, str):
-            return False
-        # Example url: https://github.com/owner/repo
-        parts = url.split("/")
-        return len(parts) >= EXPECTED_URL_PARTS
-
     # Identify rows with incomplete URLs using the helper function
     non_duplicate_rows = ~df["duplicate_flag"]  # Identify non-duplicate rows
     domain_extraction_successful = ~df["unsupported_url_scheme"]
@@ -207,6 +208,39 @@ def mark_incomplete_urls(df):
     logger.info(f"Found {incomplete_count} incomplete " f"URLs.")
 
     return df
+
+
+def extract_url(url):
+    if not url:
+        return None, True  # Return None for URL, True for unsuccessful flag
+
+    parsed_url = urlparse(url)
+    # Strip leading '/' to avoid the first empty string in the list
+    path = parsed_url.path.strip("/")
+
+    parts = path.split("/")
+
+    # Define platforms that use the complete path without slicing
+    direct_path_platforms = {
+        "gitlab.com",
+        "gitlab.torproject.org",
+        "codeberg.org",
+        "framagit.org",
+        "hydrillabugs.koszko.org",
+        "git.replicant.us",
+        "gerrit.osmocom.org",
+        "git.taler.net",
+    }
+
+    # Determine the base path based on the hosting platform
+    if any(host in parsed_url.netloc for host in direct_path_platforms):
+        base_path = path  # Use the whole path for these platforms
+    elif len(parts) < 2:
+        return None, True  # URL lacks sufficient parts, flag as unsuccessful
+    else:
+        base_path = "/".join(parts[:2])  # Standard handling for most URLs
+
+    return f"{parsed_url.scheme}://{parsed_url.netloc}/{base_path}", False
 
 
 def get_base_repo_url(df):
@@ -287,6 +321,12 @@ def get_base_repo_url(df):
     return df
 
 
+def convert_http_to_https(df):
+    if "repourl" not in df.columns:
+        raise ValueError("DataFrame must contain a 'repourl' column.")
+    df["repourl"] = df["repourl"].str.replace(r"^http\b", "https", regex=True)
+
+
 if __name__ == "__main__":
     args = parse_args()
 
@@ -346,7 +386,7 @@ if __name__ == "__main__":
     df = mark_null_values(df)
 
     # replace http with https
-    df["repourl"] = df["repourl"].str.replace(r"^http\b", "https", regex=True)
+    convert_http_to_https(df)
 
     # Extracts domains from URLs and flags rows with unsupported URL schemes.
     # unsupported_url_flag: A boolean flag that is True for rows where the
