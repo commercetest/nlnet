@@ -1,7 +1,6 @@
 import argparse
 import shutil
 import subprocess
-import sys
 import os
 import re
 from pathlib import Path
@@ -346,26 +345,33 @@ if __name__ == "__main__":
     else:
         csv_file_path = repo_root / input_file
 
+        if not csv_file_path.exists():
+            logger.info(
+                f"The input file has not been found at {csv_file_path}."
+                f" Running the script `initial_data_preparation.py` to "
+                f"create the required dataframe."
+            )
+            subprocess.run(
+                ["python", repo_root / "utils" / "initial_data_preparation.py"]
+            )
+            df = pd.read_csv(repo_root / "data" / "original_massive_df.csv")
+
         if csv_file_path.exists():
             df = pd.read_csv(csv_file_path)
-            logger.info(
-                "Initialising the columns : 'clone_status', 'testfilecountlocal', 'last_commit_hash'"
-            )
-            df["clone_status"] = None  # Initialise the clone status column
-            df["testfilecountlocal"] = -1  # Initialise if first run
-            df["last_commit_hash"] = None
-            logger.info(f"Creating and initialising columns : {test_runners.keys()}")
-            for runner in test_runners.keys():
-                df[f"{runner}_dependency_patterns"] = 0
-                df[f"{runner}_config_files"] = 0
-                df[f"{runner}_file_patterns"] = 0
 
-        else:
-            logger.error(
-                f"The input file has not been found at {csv_file_path}. Exiting..."
-            )
-            # Exit with error code 1 indicating that an error occurred
-            sys.exit(1)
+    logger.info(
+        "Initialising the columns : 'clone_status', "
+        "'testfilecountlocal', 'last_commit_hash'"
+    )
+
+    df["clone_status"] = None  # Initialise the clone status column
+    df["testfilecountlocal"] = -1  # Initialise if first run
+    df["last_commit_hash"] = None
+    logger.info(f"Creating and initialising columns : {test_runners.keys()}")
+    for runner in test_runners.keys():
+        df[f"{runner}_dependency_patterns"] = 0
+        df[f"{runner}_config_files"] = 0
+        df[f"{runner}_file_patterns"] = 0
 
     # Number of repositories to process before saving to CSV
     BATCH_SIZE = 10
