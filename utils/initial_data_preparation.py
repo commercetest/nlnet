@@ -438,3 +438,7 @@ if __name__ == "__main__":
             f"Saved DataFrame with domains having less than 10 repositories to: "
             f"{data_folder / 'other_domains.csv'}"
         )
+
+    logger.info(
+        "This is a test to see if the setup for github actions works " "or not!"
+    )
