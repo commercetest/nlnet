@@ -212,7 +212,8 @@ def mark_incomplete_urls(df):
 
 def extract_url(url):
     if not url:
-        return None, True  # Return None for URL, True for unsuccessful flag
+        # Return None for URL, True for unsuccessful flag
+        return None, True
 
     parsed_url = urlparse(url)
     # Strip leading '/' to avoid the first empty string in the list
