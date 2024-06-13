@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import os
 import re
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -348,13 +349,10 @@ if __name__ == "__main__":
         if not csv_file_path.exists():
             logger.info(
                 f"The input file has not been found at {csv_file_path}."
-                f" Running the script `initial_data_preparation.py` to "
-                f"create the required dataframe."
+                f"Please run the script `initial_data_preparation.py` to "
+                "create the required dataframe. Exiting"
             )
-            subprocess.run(
-                ["python", repo_root / "utils" / "initial_data_preparation.py"]
-            )
-            df = pd.read_csv(repo_root / "data" / "original_massive_df.csv")
+            sys.exit(1)
 
         if csv_file_path.exists():
             df = pd.read_csv(csv_file_path)
