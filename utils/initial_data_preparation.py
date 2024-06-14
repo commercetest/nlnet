@@ -482,5 +482,6 @@ if __name__ == "__main__":
         )
 
     logger.info(
-        "This is a test to see if the setup for github actions works " "or " "not!!"
+        "This is a test to check if the github action workflow works for both "
+        "helper functions and the main test files or not."
     )
