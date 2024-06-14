@@ -216,6 +216,7 @@ def extract_url(url):
         return None, True
 
     parsed_url = urlparse(url)
+
     # Strip leading '/' to avoid the first empty string in the list
     path = parsed_url.path.strip("/")
 
