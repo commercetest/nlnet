@@ -11,37 +11,37 @@ Usage:
         --input-file=data/input.csv --output-file=data/output.csv`
 """
 
+import sys
 import argparse
-import os
-import re
 from pathlib import Path
+from enum import Enum
 
 import pandas as pd
 import plotly.graph_objects as go
 from loguru import logger
 
 from utils.git_utils import get_working_directory_or_git_root
-from utils.string_utils import sanitise_directory_name
 
-# from utils.measure_performance import measure_performance, performance_records
 
-test_runners = {
-    "JUnit": {
-        "dependency_patterns": ["org.junit.jupiter:junit-jupiter", "junit:junit"],
-        "config_files": ["pom.xml", "build.gradle"],
-        "file_patterns": [".*Test.java"],
-    },
-    "pytest": {
-        "dependency_patterns": [],
-        "config_files": ["pytest.ini", "tox.ini", "pyproject.toml"],
-        "file_patterns": ["test_.*.py", ".*_test.py"],
-    },
-    "Mocha": {
-        "dependency_patterns": ["mocha"],
-        "config_files": ["package.json", ".mocharc.json", ".mocharc.js"],
-        "file_patterns": ["test/.*.js"],
-    },
-}
+class Node(Enum):
+    ORIGINAL_DATA = "Original Data"
+    DOMAINS_LESS_THAN_10 = "Domains with < 10 Repos"
+    DUPLICATES = "Duplicates"
+    INCOMPLETE_URLS = "Incomplete URLs"
+    REPOS_NOT_CLONED = "Repos not Cloned"
+    REPOS_CLONED = "Repos Cloned"
+    JUNIT = "JUnit"
+    PYTEST = "pytest"
+    MOCHA = "Mocha"
+    NO_TEST_RUNNER_DETECTED = "No test runner detected"
+
+
+class TestCategory(Enum):
+    ZERO_TEST_FILES = "0 test files"
+    ONE_TO_NINE_TEST_FILES = "1 - 9 test files"
+    TEN_TO_NINETY_NINE_TEST_FILES = "10 - 99 test files"
+    HUNDRED_TO_NINE_NINE_NINE_TEST_FILES = "100 - 999 test files"
+    MORE_THAN_THOUSAND_TEST_FILES = "More than 1000 test files"
 
 
 def parse_args():
@@ -67,83 +67,15 @@ def parse_args():
     parser.add_argument(
         "--output-file",
         type=str,
-        default=str(Path("data/ready_for_sankey.csv ")),
+        default=str(Path("data/ready_for_sankey.csv")),
         help="Path to the output CSV file.",
     )
-
     return parser.parse_args()
 
 
-def detect_test_runners(repo_path):
-    """
-    Scans the specified repository path to identify test runners based on
-    predefined dependency patterns, configuration files, and file patterns.
-    Returns a dictionary summarising the presence of each test runner.
-    """
-    runner_details = {
-        runner: {"dependency_patterns": 0, "config_files": 0, "file_patterns": 0}
-        for runner in test_runners
-    }
-
-    for root, dirs, files in os.walk(repo_path):
-        for runner, indicators in test_runners.items():
-            # Check for configuration files
-            for config_file in indicators["config_files"]:
-                if config_file in files:
-                    runner_details[runner]["config_files"] += 1
-
-            # Check for file patterns
-            for pattern in indicators["file_patterns"]:
-                matching_files = [file for file in files if re.match(pattern, file)]
-                runner_details[runner]["file_patterns"] += len(matching_files)
-
-            # Check for dependencies in the relevant configuration files
-            for dep_pattern in indicators["dependency_patterns"]:
-                for file in files:
-                    if file in indicators["config_files"]:
-                        path = os.path.join(root, file)
-                        if os.path.exists(path):
-                            with open(path, "r") as file_content:
-                                content = file_content.read()
-                                if dep_pattern in content:
-                                    runner_details[runner]["dependency_patterns"] += 1
-
-    return runner_details
-
-
-# Experimenting with detect_test_runners2() instead of detect_test_runners()
-# for improved performance. We're still evaluating which function performs
-# better in our specific use case. This change is part of an ongoing
-# experiment to optimise test runner detection.
-def detect_test_runners2(repo_path):
-    runner_details = {
-        runner: {"dependency_patterns": 0, "config_files": 0, "file_patterns": 0}
-        for runner in test_runners
-    }
-    # typically, dependency declarations are located within specific
-    # configuration files rather than scattered throughout various types of
-    # files in a repository. That's why the check for dependency_patterns is
-    # nested inside the loop that finds and processes these configuration files.
-    for root, dirs, files in os.walk(repo_path):
-        for runner, indicators in test_runners.items():
-            # Check for configuration files
-            for config_file in indicators["config_files"]:
-                if config_file in files:
-                    runner_details[runner]["config_files"] += 1
-                    # If the config file is found, read it once and check for dependencies
-                    path = os.path.join(root, config_file)
-                    with open(path, "r") as file_content:
-                        content = file_content.read()
-                        for dep_pattern in indicators["dependency_patterns"]:
-                            if dep_pattern in content:
-                                runner_details[runner]["dependency_patterns"] += 1
-
-            # Check for file patterns
-            for pattern in indicators["file_patterns"]:
-                matching_files = [file for file in files if re.match(pattern, file)]
-                runner_details[runner]["file_patterns"] += len(matching_files)
-
-    return runner_details
+def load_data(file_path):
+    logger.info(f"Loading data from {file_path}")
+    return pd.read_csv(file_path)
 
 
 def prepare_sankey_data(df):
@@ -153,27 +85,14 @@ def prepare_sankey_data(df):
     categorises repositories based on the number of test files and aggregates
     data on test runner usage.
     """
+
     # Test file counts categorised
     bins = [-1, 0, 9, 99, 999, float("inf")]
-    labels = [
-        "0 test files",
-        "1 - 9 test files",
-        "10 - 99 test files",
-        "100 - 999 test files",
-        "More than 1000 test files",
-    ]
+    labels = [category.value for category in TestCategory]
+
     df["Test File Categories"] = pd.cut(
         df["testfilecountlocal"], bins=bins, labels=labels, right=True
     )
-
-    # Categories for test files
-    test_file_categories = {
-        "0 test files": (0, 0),
-        "1 - 9 test files": (1, 9),
-        "10 - 99 test files": (10, 99),
-        "100 - 999 test files": (100, 999),
-        "More than 1000 test files": (1000, float("inf")),
-    }
 
     # Prepare domain counts
     domain_counts = df["repodomain"].value_counts()
@@ -200,92 +119,76 @@ def prepare_sankey_data(df):
         (df["JUnit_total"] == 0) & (df["pytest_total"] == 0) & (df["Mocha_total"] == 0)
     ).astype(int)
 
-    # Sum up counts for the new Sankey layer
-    test_runner_sums = {
-        "JUnit": df["JUnit_total"].sum(),
-        "pytest": df["pytest_total"].sum(),
-        "Mocha": df["Mocha_total"].sum(),
-        "No test runner detected": df["No_test_runner_detected"].sum(),
-    }
-
-    def add_node(node_name):
+    def add_node(node_enum):
+        """
+        Add a node to the Sankey graph.
+        This function creates a node for the Sankey graph and assigns it a
+        unique identifier.
+        If the input is an Enum, it extracts the Enum's value; otherwise, it
+        uses the input string directly.
+        """
         nonlocal counter
-        if node_name not in node_dict:
-            node_dict[node_name] = counter
+        # Check if the input is an Enum, extract value; if not, use the string directly
+        node_value = node_enum.value if isinstance(node_enum, Enum) else node_enum
+        if node_value not in node_dict:
+            node_dict[node_value] = counter
             counter += 1
 
-    # Add nodes
+    # Add nodes using enums
     logger.info("Adding nodes for Sankey Diagram")
-    add_node("Original Data")
-    for domain in domains_more_than_ten:
-        add_node(domain)
-    add_node("Domains with < 10 Repos")
-    add_node("Duplicates")
-    add_node("Incomplete URLs")
-    add_node("Repos not Cloned")
-    add_node("Repos Cloned")
+    for node in Node:
+        add_node(node)
 
-    for category in test_file_categories.keys():
+    for category in TestCategory:
         add_node(category)
 
-    # Add nodes for the test runners
-    for runner in test_runner_sums.keys():
-        add_node(runner)
+    # Add domain nodes dynamically
+    for domain in domains_more_than_ten:
+        add_node(domain)  # Ensure domain names are added to node_dict
 
     logger.info("Defining links between nodes")
     # Link from 'Original Data' to individual domains and grouped node
-    sources.append(node_dict["Original Data"])
-    targets.append(node_dict["Domains with < 10 Repos"])
+    sources.append(node_dict[Node.ORIGINAL_DATA.value])
+    targets.append(node_dict[Node.DOMAINS_LESS_THAN_10.value])
     values.append(domains_less_than_ten_count)
 
     # Link original data to Duplicates
     domain_duplicates_count = df[df["duplicate_flag"]].shape[0]
     if domain_duplicates_count > 0:
-        sources.append(node_dict["Original Data"])
-        targets.append(node_dict["Duplicates"])
+        sources.append(node_dict[Node.ORIGINAL_DATA.value])
+        targets.append(node_dict[Node.DUPLICATES.value])
         values.append(domain_duplicates_count)
 
+    # Define connections and calculate sums
     for domain in domains_more_than_ten:
-        sources.append(node_dict["Original Data"])
+        sources.append(node_dict[Node.ORIGINAL_DATA.value])
         targets.append(node_dict[domain])
         values.append(domain_counts[domain])
 
-        # Link domain to Incomplete URLs if applicable, excluding duplicates
-        domain_incomplete_urls_count = df[
-            (df["repodomain"] == domain)
-            & df["incomplete_url_flag"]
-            & ~df["duplicate_flag"]
-        ].shape[0]
-        if domain_incomplete_urls_count > 0:
-            sources.append(node_dict[domain])
-            targets.append(node_dict["Incomplete URLs"])
-            values.append(domain_incomplete_urls_count)
-
-        # Link domain to Repos not Cloned if applicable
-        domain_repos_not_cloned_count = df[
-            ~df["incomplete_url_flag"]
-            & ~df["duplicate_flag"]
-            & (df["clone_status"] == "failed")
-            & (df["repodomain"] == domain)
-        ].shape[0]
-        if domain_repos_not_cloned_count > 0:
-            sources.append(node_dict[domain])
-            targets.append(node_dict["Repos not Cloned"])
-            values.append(domain_repos_not_cloned_count)
-
-        # Link domain to Repos Cloned if applicable, excluding duplicates,
-        # Incomplete URLs, Base Repo URL Issues
-        domain_repos_cloned_count = df[
-            ~df["incomplete_url_flag"]
-            & ~df["duplicate_flag"]
-            & (df["clone_status"] == "successful")
-            & (df["repodomain"] == domain)
-        ].shape[0]
-
-        if domain_repos_cloned_count > 0:
-            sources.append(node_dict[domain])
-            targets.append(node_dict["Repos Cloned"])
-            values.append(domain_repos_cloned_count)
+        # Handle specific conditions and link to nodes
+        for condition, target_node in [
+            (
+                df["incomplete_url_flag"] & ~df["duplicate_flag"],
+                Node.INCOMPLETE_URLS.value,
+            ),
+            (
+                (df["clone_status"] == "failed")
+                & ~df["incomplete_url_flag"]
+                & ~df["duplicate_flag"],
+                Node.REPOS_NOT_CLONED.value,
+            ),
+            (
+                (df["clone_status"] == "successful")
+                & ~df["incomplete_url_flag"]
+                & ~df["duplicate_flag"],
+                Node.REPOS_CLONED.value,
+            ),
+        ]:
+            count = df[(df["repodomain"] == domain) & condition].shape[0]
+            if count > 0:
+                sources.append(node_dict[domain])
+                targets.append(node_dict[target_node])
+                values.append(count)
 
     # Link 'Domains with < 10 Repos' to Incomplete URLs if applicable, excluding
     # duplicates
@@ -295,8 +198,8 @@ def prepare_sankey_data(df):
         & ~df["duplicate_flag"]
     ].shape[0]
     if less_than_ten_incomplete_urls_count > 0:
-        sources.append(node_dict["Domains with < 10 Repos"])
-        targets.append(node_dict["Incomplete URLs"])
+        sources.append(node_dict[Node.DOMAINS_LESS_THAN_10.value])
+        targets.append(node_dict[Node.INCOMPLETE_URLS.value])
         values.append(less_than_ten_incomplete_urls_count)
 
     # Link 'Domains with < 10 Repos' to Repos Not Cloned if applicable, excluding
@@ -307,10 +210,9 @@ def prepare_sankey_data(df):
         & ~df["duplicate_flag"]
         & (df["clone_status"] == "failed")
     ].shape[0]
-
     if less_than_ten_repos_not_cloned_count > 0:
-        sources.append(node_dict["Domains with < 10 Repos"])
-        targets.append(node_dict["Repos not Cloned"])
+        sources.append(node_dict[Node.DOMAINS_LESS_THAN_10.value])
+        targets.append(node_dict[Node.REPOS_NOT_CLONED.value])
         values.append(less_than_ten_repos_not_cloned_count)
 
     # Link 'Domains with < 10 Repos' to Repos Cloned if applicable, excluding
@@ -321,10 +223,9 @@ def prepare_sankey_data(df):
         & ~df["duplicate_flag"]
         & (df["clone_status"] == "successful")
     ].shape[0]
-
     if less_than_ten_repos_cloned_count > 0:
-        sources.append(node_dict["Domains with < 10 Repos"])
-        targets.append(node_dict["Repos Cloned"])
+        sources.append(node_dict[Node.DOMAINS_LESS_THAN_10.value])
+        targets.append(node_dict[Node.REPOS_CLONED.value])
         values.append(less_than_ten_repos_cloned_count)
 
     # Determine the primary test runner for each repository
@@ -333,12 +234,12 @@ def prepare_sankey_data(df):
         ["JUnit_file_patterns", "pytest_file_patterns", "Mocha_file_patterns"]
     ].idxmax(axis=1)
 
-    # Replace column names with runner names
+    # Replace column names with runner names using enums
     df["primary_runner"] = df["primary_runner"].replace(
         {
-            "JUnit_file_patterns": "JUnit",
-            "pytest_file_patterns": "pytest",
-            "Mocha_file_patterns": "Mocha",
+            "JUnit_file_patterns": Node.JUNIT.value,
+            "pytest_file_patterns": Node.PYTEST.value,
+            "Mocha_file_patterns": Node.MOCHA.value,
         }
     )
     # Handling cases where all runners have zero files (if necessary)
@@ -350,43 +251,54 @@ def prepare_sankey_data(df):
         "primary_runner",
     ] = "No test runner detected"
 
-    # For each runner, calculate the number of repositories that primarily use it
+    # For each runner, calculate the number of repositories that primarily use
+    # it
     logger.info(
-        "For each runner, calculate the number of repositories that " "primarily use it"
+        "For each runner, calculate the number of repositories that "
+        "primarily uses it."
     )
-    for runner in ["JUnit", "pytest", "Mocha"]:
+
+    for runner_enum in [Node.JUNIT, Node.PYTEST, Node.MOCHA]:
         runner_repo_count = df[
-            (df["primary_runner"] == runner) & (df["clone_status"] == "successful")
+            (df["primary_runner"] == runner_enum.value)
+            & (df["clone_status"] == "successful")
         ].shape[0]
+
         if runner_repo_count > 0:
-            sources.append(node_dict["Repos Cloned"])
-            targets.append(node_dict[runner])
+            sources.append(node_dict[Node.REPOS_CLONED.value])
+            targets.append(node_dict[runner_enum.value])
             values.append(runner_repo_count)
 
     no_runner_count = df[
-        (df["primary_runner"] == "No test runner detected")
+        (df["primary_runner"] == Node.NO_TEST_RUNNER_DETECTED.value)  # Use enum value
         & (df["clone_status"] == "successful")
     ].shape[0]
+
     if no_runner_count > 0:
-        sources.append(node_dict["Repos Cloned"])
-        targets.append(node_dict["No test runner detected"])
+        sources.append(node_dict[Node.REPOS_CLONED.value])  # Use enum value
+        targets.append(node_dict[Node.NO_TEST_RUNNER_DETECTED.value])  # Use enum value
         values.append(no_runner_count)
 
     # Calculate how many repositories primarily using each test runner fall
     # into each test file category.
     # (pass the count of repositories in each category.)
     logger.info("Pass the count of repositories in each category")
-    for runner in ["JUnit", "pytest", "Mocha", "No test runner detected"]:
-        for category in test_file_categories.keys():
+    for runner_enum in [
+        Node.JUNIT,
+        Node.PYTEST,
+        Node.MOCHA,
+        Node.NO_TEST_RUNNER_DETECTED,
+    ]:
+        for category_enum in TestCategory:
             # Calculate the number of repositories for each runner in each test file category
             category_count = df[
-                (df["primary_runner"] == runner)
-                & (df["Test File Categories"] == category)
+                (df["primary_runner"] == runner_enum.value)
+                & (df["Test File Categories"] == category_enum.value)
                 & (df["clone_status"] == "successful")
             ].shape[0]
             if category_count > 0:
-                sources.append(node_dict[runner])
-                targets.append(node_dict[category])
+                sources.append(node_dict[runner_enum.value])
+                targets.append(node_dict[category_enum.value])
                 values.append(category_count)
 
     return node_dict, sources, targets, values
@@ -401,59 +313,24 @@ output_file = args.output_file
 working_directory = get_working_directory_or_git_root()
 logger.info(f"Working directory is: {working_directory}")
 
-logger.info(f"Input file path : {working_directory / input_file}")
-df = pd.read_csv(working_directory / input_file)
+input_file_path = working_directory / input_file
+logger.info(f"Input file path: {input_file_path}")
+try:
+    df = load_data(working_directory / input_file)
+except FileNotFoundError:
+    logger.error("Input file not found at: " + str(input_file_path))
+    sys.exit(1)
+except pd.errors.EmptyDataError:
+    logger.error("Input file is empty at: " + str(input_file_path))
+    sys.exit(1)
+except Exception as e:
+    logger.error(f"An error occurred while loading the data: {str(e)}")
+    sys.exit(1)
 
-logger.info(f"Repositories Clone Directory : {working_directory / clone_directory}")
+
+logger.info(f"Repositories Clone Directory: {working_directory / clone_directory}")
 beginning_clone_dir = str(working_directory / clone_directory) + "/"
-logger.info(f"Beginning_clone_dir : {beginning_clone_dir}")
-# Initialise columns
-logger.info(f"Creating and initialising columns : {test_runners.keys()}")
-for runner in test_runners.keys():
-    df[f"{runner}_dependency_patterns"] = 0
-    df[f"{runner}_config_files"] = 0
-    df[f"{runner}_file_patterns"] = 0
-
-logger.info(
-    'Counting test runner files matching "dependency_patterns", '
-    '"config_files", "file_patterns" and saving the values in the '
-    "respective columns"
-)
-
-for index, row in df.iterrows():
-    if row["clone_status"] == "successful":
-        parts = row["repourl"].split("/")
-        clone_dir = (
-            beginning_clone_dir
-            + sanitise_directory_name(row["repodomain"])
-            + "/"
-            + parts[-1]
-        )
-
-        # runner_presence = measure_performance(detect_test_runners2, clone_dir)
-        # Measure the performance of the detect_test_runners function
-        # runner_presence = measure_performance(detect_test_runners, clone_dir)
-        runner_presence = detect_test_runners2(clone_dir)
-
-        for runner, details in runner_presence.items():
-            df.at[index, f"{runner}_dependency_patterns"] = details[
-                "dependency_patterns"
-            ]
-            df.at[index, f"{runner}_config_files"] = details["config_files"]
-            df.at[index, f"{runner}_file_patterns"] = details["file_patterns"]
-
-
-# Convert performance records to a DataFrame for easy manipulation and analysis
-# performance_df = pd.DataFrame(performance_records)
-# performance_df.to_csv(working_directory / "data" /
-#                       "performance_df_file_opening_first.csv",
-#                       index=False)
-# Calculate summary statistics
-# summary_stats = performance_df.describe()
-# print(summary_stats)
-
-logger.info(f"Sankey input dataframe saved in: " f"{working_directory/output_file}")
-df.to_csv(working_directory / output_file, index=False)
+logger.info(f"Beginning_clone_dir: {beginning_clone_dir}")
 
 node_dict, sources, targets, values = prepare_sankey_data(df)
 
@@ -472,7 +349,7 @@ fig = go.Figure(
     ]
 )
 fig.update_layout(
-    title_text="Extended Project Analysis Sankey Diagram with " "Test Runners",
+    title_text="Extended Project Analysis Sankey Diagram with Test Runners",
     font_size=12,
 )
 
