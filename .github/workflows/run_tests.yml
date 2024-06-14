@@ -3,7 +3,6 @@
     push:
       paths:
         - 'utils/initial_data_preparation.py'
-        - 'tests/test_initial_data_preparation.py'
 
   jobs:
     run-specific-tests:
