@@ -4,9 +4,11 @@ import os
 import json
 from loguru import logger
 from tqdm import tqdm
-from pygments.lexers import get_lexer_for_filename, guess_lexer
+from pygments.lexers import guess_lexer
 from pygments.util import ClassNotFound
 from utils.git_utils import get_working_directory_or_git_root
+
+logger.add("script.log", rotation="500 MB")
 
 PROGRAMMING_EXTENSIONS = {
     ".py",
@@ -24,8 +26,6 @@ PROGRAMMING_EXTENSIONS = {
     ".m",
     ".h",
     ".sh",
-    ".html",
-    ".css",
     ".scss",
     ".json",
     ".xml",
@@ -78,8 +78,13 @@ def detect_language(file_path):
                 # PythonLexer). If no appropriate lexer is found, it typically
                 # falls back to a generic lexer suitable for plain text or
                 # returns TextLexer.
-                lexer = get_lexer_for_filename(file_path)
-                language = lexer.name
+
+                # lexer = get_lexer_for_filename(file_path)
+                # language = lexer.name
+                # logger.debug(f"Detected language from file extension: {language}")
+                # return language
+
+                language = PROGRAMMING_EXTENSIONS.get(extension, "Unknown")
                 logger.debug(f"Detected language from file extension: {language}")
                 return language
             except ClassNotFound:
@@ -91,20 +96,24 @@ def detect_language(file_path):
         return "Unknown"
 
 
-def extract_languages(cloned_repos_base_path, df):
+def extract_languages(cloned_repos_base_path, df, df_path):
     """
     Extracts the programming languages used in each repository.
     Args:
-        base_path (str): The base path to the cloned repositories.
+        cloned_repos_base_path (str): The base path to the cloned repositories.
+        df (DataFrame): The DataFrame to update with language information.
+        df_path (str): Path to save the DataFrame periodically.
     Returns:
-        dict: A dictionary where keys are repository names and values are
-        lists of detected languages.
+        DataFrame: The updated DataFrame with language information.
     """
     org_paths = list(Path(cloned_repos_base_path).glob("*"))
+    logger.info(f"Found {len(org_paths)} organisations")
 
     for org_path in tqdm(org_paths, desc="Analysing organisations", unit="org"):
         if org_path.is_dir():
             repo_paths = list(org_path.glob("*"))
+            logger.info(f"Found {len(repo_paths)} repositories in {org_path.name}")
+
             for repo_path in tqdm(
                 repo_paths,
                 desc=f"Analysing repositories in {org_path.name}",
@@ -113,27 +122,42 @@ def extract_languages(cloned_repos_base_path, df):
             ):
                 if repo_path.is_dir():
                     repo_name = repo_path.name
+                    logger.info(f"Processing repository: {repo_name}")
+
                     # Skip already processed repositories
                     if (
                         df[df["repourl"].str.contains(repo_name)]["languages"]
                         .notna()
                         .any()
                     ):
+                        logger.info(
+                            f"Skipping already processed repository: {repo_name}"
+                        )
                         continue
+
                     repo_languages = set()
+                    file_paths = list(repo_path.rglob("*"))
+                    logger.info(f"Found {len(file_paths)} files in {repo_name}")
+
                     for file_path in tqdm(
-                        repo_path.rglob("*"),
+                        file_paths,
                         desc=f"Analysing files in {repo_path.name}",
                         unit="file",
                         leave=False,
                     ):
                         if file_path.is_file():
                             language = detect_language(str(file_path))
-                            repo_languages.add(language)
+                            if language != "Unknown":
+                                repo_languages.add(language)
+
                     # Update the DataFrame
                     df.loc[df["repourl"].str.contains(repo_name), "languages"] = (
                         json.dumps(list(repo_languages))
                     )
+                    logger.info(
+                        f"Updated languages for {repo_name}: {list(repo_languages)}"
+                    )
+
                     # Save the DataFrame periodically
                     df.to_csv(df_path, index=False)
 
@@ -148,14 +172,16 @@ if __name__ == "__main__":
     input_file_path = working_directory / Path("data/merged_df.csv")
     logger.info(f"Input file path: {input_file_path}")
 
-    df = pd.read_csv(input_file_path)
-
-    # Check if the 'languages' column exists, create it if not
-    if "languages" not in df.columns:
+    if os.path.exists(working_directory / "data/merged_df_with_languages.csv"):
+        logger.info("Resuming from previously saved progress.")
+        df = pd.read_csv(working_directory / "data/merged_df_with_languages.csv")
+    else:
+        df = pd.read_csv(input_file_path)
         logger.info(
-            "Column 'languages' not found. Creating and prefilling it with " "None."
+            "Column 'languages' not found. Creating and prefilling it with None."
         )
-        df["languages"] = None
+        if "languages" not in df.columns:
+            df["languages"] = None
 
     # Base path to the cloned repositories
     cloned_repos_base_path = working_directory / "data/cloned_repos"
@@ -163,7 +189,7 @@ if __name__ == "__main__":
     # Extract languages from the cloned repositories
     logger.info("Extracting languages from cloned repositories")
     df_path = working_directory / "data/merged_df_with_languages.csv"
-    df = extract_languages(cloned_repos_base_path, df)
+    df = extract_languages(cloned_repos_base_path, df, df_path)
 
     # Save the updated DataFrame
     df.to_csv(df_path, index=False)
