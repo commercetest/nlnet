@@ -9,9 +9,10 @@ import pandas as pd
 from utils.git_utils import get_working_directory_or_git_root
 from loguru import logger
 import ast
+from mccabe import PathGraphingAstVisitor
 
 
-def convert_test_file_list_to_df(file_path):
+def convert_test_file_list_to_dataframe(file_path):
     """
     Converts a text file containing repository URLs and file paths into a DataFrame.
 
@@ -125,6 +126,48 @@ def analyse_test_file(file_path):
     }
 
 
+def analyse_code_file(file_path, max_complexity=10):
+    """
+    Analyses a Python code file to extract code metrics such as cyclomatic
+    complexity, lines of code, and the number of functions.
+
+    Args:
+        file_path (str): The path to the code file.
+        max_complexity (int): The maximum allowed complexity for a function.
+
+    Returns:
+        dict: A dictionary containing the code metrics.
+    """
+    if not file_path.endswith(".py"):
+        logger.info(f"Skipping non-Python file {file_path}")
+        return {"cyclomatic_complexity": 0, "lines_of_code": 0, "num_functions": 0}
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = file.read()
+            tree = ast.parse(content, filename=file_path)
+    except (SyntaxError, UnicodeDecodeError, FileNotFoundError) as e:
+        logger.info(f"Error processing file {file_path}: {e}")
+        return {"cyclomatic_complexity": 0, "lines_of_code": 0, "num_functions": 0}
+
+    num_functions = 0
+    lines_of_code = len(content.splitlines())
+    cyclomatic_complexity = 0
+
+    visitor = PathGraphingAstVisitor()
+    visitor.preorder(tree, visitor)
+
+    for graph in visitor.graphs.values():
+        num_functions += 1
+        cyclomatic_complexity += graph.complexity()
+
+    return {
+        "cyclomatic_complexity": cyclomatic_complexity,
+        "lines_of_code": lines_of_code,
+        "num_functions": num_functions,
+    }
+
+
 if __name__ == "__main__":
     working_directory = get_working_directory_or_git_root()
     logger.info(f"Working directory: {working_directory}")
@@ -138,7 +181,7 @@ if __name__ == "__main__":
     df_language_python = df[df["detected_language"] == "Python"]
 
     logger.info("Converting the test_files_list.txt into a dataframe")
-    test_file_list_df = convert_test_file_list_to_df(
+    test_file_list_df = convert_test_file_list_to_dataframe(
         str(working_directory / "data" / "test_files_list.txt")
     )
 
@@ -151,13 +194,17 @@ if __name__ == "__main__":
     )
 
     logger.info("Apply the analysis to each test file")
-    merged_df["analysis"] = merged_df["file_path"].apply(analyse_test_file)
+    merged_df["test_file_analysis"] = merged_df["file_path"].apply(analyse_test_file)
+    merged_df["code_file_analysis"] = merged_df["file_path"].apply(analyse_code_file)
 
     # Expand the analysis into separate columns
-    analysis_df = merged_df["analysis"].apply(pd.Series)
+    test_analysis_df = merged_df["test_file_analysis"].apply(pd.Series)
+    code_analysis_df = merged_df["code_file_analysis"].apply(pd.Series)
 
     # Concatenate the analysis results with the original DataFrame
-    final_df = pd.concat([merged_df, analysis_df], axis=1)
+    final_df = pd.concat([merged_df, test_analysis_df, code_analysis_df], axis=1)
 
     # Drop the original 'analysis' column as it's now expanded
-    final_df.drop(columns=["analysis"], inplace=True)
+    final_df.drop(columns=["test_file_analysis", "code_file_analysis"], inplace=True)
+
+    final_df.to_csv(working_directory / "data" / "test_metrics_df.csv", index=False)
