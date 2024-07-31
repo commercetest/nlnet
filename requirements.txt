@@ -9,7 +9,8 @@ rdflib~=7.0.0
 pre-commit~=3.6.2
 ruff~=0.3.4
 plotly~=5.21.0
-
+supbase~=2.5.1
+python-dotenv~=1.0.1
 
 # added to run test reports and generate a badge with the result
 defusedxml~=0.7.1
