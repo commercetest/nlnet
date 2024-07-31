@@ -28,6 +28,19 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 # Project Settings -> API -> Project API keys
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
+# Check if all the required environment variables are set
+required_env_vars = [SUPABASE_URL, SUPABASE_KEY]
+missing_vars = [
+    var
+    for var in required_env_vars
+    if var not in os.environ or os.environ.get(var) is None
+]
+
+if missing_vars:
+    raise EnvironmentError(
+        f"Missing required environment variables: {', '.join(missing_vars)}"
+    )
+
 # Initialising the Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
