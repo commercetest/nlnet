@@ -7,6 +7,10 @@ from a `.env` file and the `supabase-py` library to perform database operations.
 The script includes functions to write data to and read data from a Supabase
 table.
 
+Argparse Parameters:
+- --logfile-path: Path to the logfile. Defaults to "supabase/write_to_db.log"
+in the working directory or git root.
+
 Environment Variables:
 - SUPABASE_URL: The URL of the Supabase instance.
 - SUPABASE_KEY: The API key for accessing the Supabase instance.
@@ -15,9 +19,42 @@ Environment Variables:
 
 import os
 import platform
+import logging
+import argparse
+from pathlib import Path
 
 from dotenv import load_dotenv
 from supabase import create_client, Client
+
+from utils.git_utils import get_working_directory_or_git_root
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Supabase Database Interaction Script")
+    parser.add_argument(
+        "--logfile-path",
+        type=str,
+        default=str(
+            Path(get_working_directory_or_git_root()) / "supabase" / "write_to_db.log"
+        ),
+        help="Path to the logfile",
+    )
+    return parser.parse_args()
+
+
+args = parse_args()
+log_file_path = args.logfile_path
+
+
+# Configure logging
+logging.basicConfig(
+    filename=log_file_path,
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+
+
+logging.info(f"Logfile wil be saved in : {log_file_path}")
 
 # Load environment variables from .env file
 load_dotenv()
@@ -30,11 +67,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 # Check if all the required environment variables are set
 required_env_vars = [SUPABASE_URL, SUPABASE_KEY]
-missing_vars = [
-    var
-    for var in required_env_vars
-    if var not in os.environ or os.environ.get(var) is None
-]
+missing_vars = [var for var in required_env_vars if not os.getenv(var)]
 
 if missing_vars:
     raise EnvironmentError(
@@ -72,10 +105,11 @@ def write_to_db(
         }
         supabase.table("guessed_languages").insert(data).execute()
 
-        print("Data inserted successfully")
+        # Log the successful data insertion
+        logging.info("'Data inserted successfully'")
 
     except Exception as error:
-        print(f"Error: {error}")
+        logging.error(f"Error: {error}")
 
 
 def read_from_db():
@@ -103,4 +137,4 @@ def read_from_db():
 if __name__ == "__main__":
     # Read the distinct file_path values
     processed_files = read_from_db()
-    print(f"Processed files: {processed_files}")
+    logging.info(f"Processed files: {processed_files}")
