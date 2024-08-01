@@ -124,13 +124,18 @@ def read_from_db():
         # Query the distinct file_path values from the guessed_languages table
         response = supabase.table("guessed_languages").select("file_path").execute()
 
+        # Check if response.data is empty and handle it
+        if not response.data:
+            logging.info("No records found in the 'guessed_languages' table.")
+            return set()
+
         # Extract the file_path values and return them as a set
         file_paths = set(record["file_path"] for record in response.data)
 
         return file_paths
 
     except Exception as error:
-        print(f"Error: {error}")
+        logging.error(f"Error reading from the database: {error} ")
         return set()
 
 
