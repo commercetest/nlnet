@@ -136,7 +136,7 @@ def read_from_db():
 
     except Exception as error:
         logging.error(f"Error reading from the database: {error} ")
-        return set()
+        raise
 
 
 if __name__ == "__main__":
