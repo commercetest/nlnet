@@ -12,7 +12,7 @@ supabase~=2.5.1
 python-dotenv~=1.0.1
 tensorflow~=2.13.1
 typing-extensions~=4.12.2
-tqdm
+tqdm~=4.66.4
 
 
 # added to run test reports and generate a badge with the result
