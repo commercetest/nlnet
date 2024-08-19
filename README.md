@@ -4,6 +4,11 @@ Analysis of the opensource codebases of NLnet sponsored projects.
 [![Tests Status](./reports/junit/tests-badge.svg?dummy=8484744)](./reports/junit/report.html)
 [![Tests Coverage](./reports/coverage/coverage-badge.svg?dummy=8484744)](./reports/junit/report.html)
 
+This project offers several forms of analysis including:
+
+* A sankey diagram as a visual report of the relationship between projects and any automated test files detected here.
+* A database in supabase populated with the output of the `guesslang` utility. (Note: we're using a [fork](https://github.com/commercetest/guesslang) of the guesslang project as that hasn't been updated to support more recent version of python.)
+
 ## Objectives
 The main objective is to be able to identify characteristics of existing and current testing practices recorded in the opensource repos of projects that have received funding from NLnet foundation. These details may then enable us to identify ways to help distill approaches that may help several of these projects in tandem (concurrently).
 
@@ -60,6 +65,10 @@ genbadge tests --output-file reports/junit/tests-badge.svg
 pytest --cov-report xml:reports/coverage/coverage.xml --cov .
 genbadge coverage --output-file reports/coverage/coverage-badge.svg
 ```
+
+The pre-commit hooks are run automatically by `git`. They can also be run interactively https://pre-commit.com/#4-optional-run-against-all-the-files which can help to reduce the number of aborted commits for whitespace and other minor issues. Here's an example of how to run it:
+`pre-commit run --all-files`
+
 
 ## Scripts
 
