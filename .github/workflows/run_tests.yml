@@ -1,0 +1,28 @@
+  name: Test Runner for the script 'initial_data_preparation.py'
+  on:
+    push:
+      paths:
+        - 'utils/initial_data_preparation.py'
+
+  jobs:
+    run-specific-tests:
+      runs-on: ubuntu-latest
+
+      steps:
+        - uses: actions/checkout@v4
+
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.10'
+
+        - name: Print requirements.txt
+          run: cat requirements.txt
+
+        - name: Install dependencies
+          run: |
+            cat requirements.txt
+            pip install -r requirements.txt
+
+        - name: Run specific tests
+          run: pytest tests/test_initial_data_preparation.py
