@@ -89,8 +89,8 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
    - Conditional Saving: Saves DataFrames that contain more than 10 entries into a structured directory format, tailored specifically for repositories hosted under distinct             domains.
    - Output Reporting: Generates a count of repositories for each domain, saved into a text file for easy reference and further analysis.
    - Command Line Arguments
-   - --input-file: Specifies the path to the input TSV file.
-   - --output-folder: Specifies the directory where output CSV files and other results will be saved.
+   - `--input-file`: Specifies the path to the input TSV file.
+   - `--output-folder`: Specifies the directory where output CSV files and other results will be saved.
 
    #### Functions
    - parse_args(): Parses command-line arguments to customise input and output paths.
@@ -239,7 +239,7 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
    Your `.env` file should look like this:
    ```
      SUPABASE_URL=https://your-supabase-url.supabase.co
-      SUPABASE_KEY=your-api-key
+     SUPABASE_KEY=your-api-key
    ```
 
 
