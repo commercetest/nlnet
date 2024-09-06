@@ -209,8 +209,8 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
     paths for input data and output:
     Command line usage example:
    ```
-        python sankey_diagram_plotly.py --clone-dir=data/cloned_repos
-        --input-file=data/input.csv --output-file=data/output.csv`
+   python sankey_diagram_plotly.py --clone-dir=data/cloned_repos
+   --input-file=data/input.csv --output-file=data/output.csv`
    ```
    ![Sankey diagrame:](docs/Sankey_diagram.png)
 
