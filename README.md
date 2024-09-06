@@ -141,7 +141,7 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
    ```
 
 
-4. github_repo_request_local.py:
+3. github_repo_request_local.py:
 
    #### Overview
 
@@ -174,9 +174,11 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
 
    To use this script, you can specify all necessary command line arguments based on your requirements. For example:
 
-   ```bash
+   ```
+   python script.py --exclude ".md,.txt" --clone-dir "/path/to/clone/directory" --input-file "repos.csv" --output-file "output.csv" --keep-clones
+   ```
 
-5. github_repo_requests.py:
+4. github_repo_requests.py:
 
    #### Overview
 
@@ -190,6 +192,28 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
       -  **GitHub Interaction**: Interface with the GitHub API to perform searches within repositories and retrieve commit information.
       -  **Rate Limiting**: Respect GitHub API rate limits with built-in delay and retry logic.
       -  **Data Enrichment**: Update the original CSV file with the count of test files and the latest commit data for each repository.
+
+
+5. sankey_diagram_plotly.py:
+
+   #### Overview
+
+   This script visualises the usage of various test runners across cloned
+   repositories. It scans repositories for test patterns and dependencies, and
+   visualises the data using a Sankey diagram in a web browser. Please see
+   the diagram below.
+
+   #### Usage
+
+    The script is intended to be run with command line arguments specifying
+    paths for input data and output:
+    Command line usage example:
+   ```
+        python sankey_diagram_plotly.py --clone-dir=data/cloned_repos
+        --input-file=data/input.csv --output-file=data/output.csv`
+   ```
+   ![Sankey diagrame:](docs/Sankey_diagram.png)
+
 
 
 ## Related projects
