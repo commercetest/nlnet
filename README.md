@@ -206,7 +206,7 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
    #### Usage
 
     The script is intended to be run with command line arguments specifying
-    paths for input data and output:
+    paths for input data and output.
     Command line usage example:
    ```
    python sankey_diagram_plotly.py --clone-dir=data/cloned_repos
@@ -214,6 +214,51 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
    ```
    ![Sankey diagrame:](docs/Sankey_diagram.png)
 
+
+6. supabase_db_interactions.py
+
+   #### Overview
+   This script demonstrates how to interact with a Supabase database using Python.
+   It utilises the `dotenv` library to load environment variables
+   from a `.env` file and the `supabase-py` library to perform database
+   operations.
+   The script includes functions to write data to and read data from a Supabase
+   table.
+
+   #### Features
+   - Command Line Arguments:
+
+       `--logfile-path`: Specify the path to the logfile. If not provided, it defaults to `supabase/write_to_db.log` in the working directory or the git root.
+   Example:
+   ```
+   python supabase_script.py --logfile-path "/path/to/logfile.log"
+   ```
+   - Environment Variables:
+     - `SUPABASE_URL`: The URL of the Supabase instance.
+     - `SUPABASE_KEY`: The API key for accessing the Supabase instance.
+   Your `.env` file should look like this:
+   ```
+     SUPABASE_URL=https://your-supabase-url.supabase.co
+      SUPABASE_KEY=your-api-key
+   ```
+
+
+
+7. guesslang_to_db.py
+
+   #### Overview
+   This script provides functionality to analyse files within cloned
+   repositories, detect their programming languages using
+   the guesslang library, and write the results to a Supabase database.
+
+   Run the script with the appropriate `--clone-dir` argument specifying the
+   directory where repositories are cloned or let it use the default directory.
+
+   Example:
+
+    ```
+   python script.py --clone-dir /path/to/cloned_repos
+   ```
 
 
 ## Related projects
