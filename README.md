@@ -252,7 +252,8 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
    the guesslang library, and write the results to a Supabase database.
 
    Run the script with the appropriate `--clone-dir` argument specifying the
-   directory where repositories are cloned or let it use the default directory.
+   directory where repositories are cloned or let it use the default
+   directory (located in the `cloned_repos` folder under the `data` directory).
 
    Example:
 
