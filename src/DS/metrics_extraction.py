@@ -60,7 +60,7 @@ def parse_args():
         default=Path(
             get_working_directory_or_git_root()
             / "data"
-            / "test_metrics_df_guesslang2.csv"
+            / "test_metrics_df_guesslang.csv"
         ),
         help="Path to the output CSV file.",
     )
