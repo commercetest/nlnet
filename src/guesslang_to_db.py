@@ -21,7 +21,7 @@ from loguru import logger
 from tqdm import tqdm
 from guesslang import Guess
 
-from db import read_from_db, write_to_db
+from supabase_db_interactions import read_from_db, write_to_db
 from utils.git_utils import get_working_directory_or_git_root
 
 # Configure logger
