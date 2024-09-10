@@ -200,14 +200,14 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
 
    This script visualises the usage of various test runners across cloned
    repositories. It scans repositories for test patterns and dependencies, and
-   visualises the data using a Sankey diagram in a web browser. Please see
-   the diagram below.
+   visualises the data using a Sankey diagram in a web browser. Please see an
+   example of the resulting diagram below.
 
    #### Usage
 
     The script is intended to be run with command line arguments specifying
     paths for input data and output.
-    Command line usage example:
+    Command-line usage example:
    ```
    python sankey_diagram_plotly.py --clone-dir=data/cloned_repos
    --input-file=data/input.csv --output-file=data/output.csv`
@@ -226,9 +226,11 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
    table.
 
    #### Features
-   - Command Line Arguments:
+   - Command-Line Arguments:
 
-       `--logfile-path`: Specify the path to the logfile. If not provided, it defaults to `supabase/write_to_db.log` in the working directory or the git root.
+       `--logfile-path`: Specify the path to the logfile. If not provided, it defaults to `supabase/write_to_db.log`
+   in the working directory ( if the current directory is not within a Git repository) or the git root ( the path to
+   the top-level directory of the current Git repository).
    Example:
    ```
    python supabase_script.py --logfile-path "/path/to/logfile.log"
@@ -236,7 +238,9 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
    - Environment Variables:
      - `SUPABASE_URL`: The URL of the Supabase instance.
      - `SUPABASE_KEY`: The API key for accessing the Supabase instance.
-   Your `.env` file should look like this:
+
+     Your `.env` file should look more-or-less like this depending on your actual values for these two environment
+   variables.
    ```
      SUPABASE_URL=https://your-supabase-url.supabase.co
      SUPABASE_KEY=your-api-key
