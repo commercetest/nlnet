@@ -89,8 +89,8 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
    - Conditional Saving: Saves DataFrames that contain more than 10 entries into a structured directory format, tailored specifically for repositories hosted under distinct             domains.
    - Output Reporting: Generates a count of repositories for each domain, saved into a text file for easy reference and further analysis.
    - Command Line Arguments
-   - --input-file: Specifies the path to the input TSV file.
-   - --output-folder: Specifies the directory where output CSV files and other results will be saved.
+   - `--input-file`: Specifies the path to the input TSV file.
+   - `--output-folder`: Specifies the directory where output CSV files and other results will be saved.
 
    #### Functions
    - parse_args(): Parses command-line arguments to customise input and output paths.
@@ -141,7 +141,7 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
    ```
 
 
-4. github_repo_request_local.py:
+3. github_repo_request_local.py:
 
    #### Overview
 
@@ -174,9 +174,11 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
 
    To use this script, you can specify all necessary command line arguments based on your requirements. For example:
 
-   ```bash
+   ```
+   python script.py --exclude ".md,.txt" --clone-dir "/path/to/clone/directory" --input-file "repos.csv" --output-file "output.csv" --keep-clones
+   ```
 
-5. github_repo_requests.py:
+4. github_repo_requests.py:
 
    #### Overview
 
@@ -190,6 +192,78 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
       -  **GitHub Interaction**: Interface with the GitHub API to perform searches within repositories and retrieve commit information.
       -  **Rate Limiting**: Respect GitHub API rate limits with built-in delay and retry logic.
       -  **Data Enrichment**: Update the original CSV file with the count of test files and the latest commit data for each repository.
+
+
+5. sankey_diagram_plotly.py:
+
+   #### Overview
+
+   This script visualises the usage of various test runners across cloned
+   repositories. It scans repositories for test patterns and dependencies, and
+   visualises the data using a Sankey diagram in a web browser. Please see an
+   example of the resulting diagram below.
+
+   #### Usage
+
+    The script is intended to be run with command line arguments specifying
+    paths for input data and output.
+    Command-line usage example:
+   ```
+   python sankey_diagram_plotly.py --clone-dir=data/cloned_repos
+   --input-file=data/input.csv --output-file=data/output.csv`
+   ```
+   ![Sankey diagrame:](docs/Sankey_diagram.png)
+
+
+6. supabase_db_interactions.py
+
+   #### Overview
+   This script demonstrates how to interact with a Supabase database using Python.
+   It utilises the `dotenv` library to load environment variables
+   from a `.env` file and the `supabase-py` library to perform database
+   operations.
+   The script includes functions to write data to and read data from a Supabase
+   table.
+
+   #### Features
+   - Command-Line Arguments:
+
+       `--logfile-path`: Specify the path to the logfile. If not provided, it defaults to `supabase/write_to_db.log`
+   in the working directory ( if the current directory is not within a Git repository) or the git root ( the path to
+   the top-level directory of the current Git repository).
+   Example:
+   ```
+   python supabase_script.py --logfile-path "/path/to/logfile.log"
+   ```
+   - Environment Variables:
+     - `SUPABASE_URL`: The URL of the Supabase instance.
+     - `SUPABASE_KEY`: The API key for accessing the Supabase instance.
+
+     Your `.env` file should look more-or-less like this depending on your actual values for these two environment
+   variables.
+   ```
+     SUPABASE_URL=https://your-supabase-url.supabase.co
+     SUPABASE_KEY=your-api-key
+   ```
+
+
+
+7. guesslang_to_db.py
+
+   #### Overview
+   This script provides functionality to analyse files within cloned
+   repositories, detect their programming languages using
+   the guesslang library, and write the results to a Supabase database.
+
+   Run the script with the appropriate `--clone-dir` argument specifying the
+   directory where repositories are cloned or let it use the default
+   directory (located in the `cloned_repos` folder under the `data` directory).
+
+   Example:
+
+    ```
+   python script.py --clone-dir /path/to/cloned_repos
+   ```
 
 
 ## Related projects
