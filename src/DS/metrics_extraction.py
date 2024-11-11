@@ -7,9 +7,13 @@ files and general Python code files, extracting metrics such as:
 - Number of assertions (using 'assert' statements)
 - Presence of setup and teardown methods (e.g., setUp, tearDown)
 - Complexity of the test file (measured by counting functions and branches)
-- Cyclomatic complexity of the code
-- Lines of code (LOC)
-- Number of functions
+- Cyclomatic complexity of the code : sum of all functions' complexities where
+cyclomatic complexity of that function, is a measure of how many independent
+paths or 'decision points' exist in the function. Cyclomatic complexity
+generally increases with the number of branches, loops, and conditional
+statements in the function.
+- Lines of code (LOC) : Counts lines by splitting the file content into lines.
+- Number of functions : Counts each function encountered.
 
 The script saves the results of these analyses to a specified CSV file,
 updating the file in batches as multiple files are processed.
@@ -148,11 +152,13 @@ def analyse_test_file(file_path):
                     # function
                     if isinstance(body_node, ast.If):
                         complexity += 1  # Each 'if' branch increases complexity
-                        logger.debug(f"Incrementing complexity for 'if' in {node.name}")
+                        logger.debug(
+                            f"Incrementing complexity for 'if' in" f" {node.name}"
+                        )
 
                     if isinstance(body_node, ast.Expr) and isinstance(
                         body_node.value, ast.Call
-                    ):  #  Checks if the node is an expression and a function
+                    ):  # Checks if the node is an expression and a function
                         # call.
                         if (
                             isinstance(body_node.value.func, ast.Name)
@@ -215,6 +221,9 @@ def analyse_code_file(file_path, max_complexity=10):
     visitor.preorder(tree, visitor)
 
     for graph in visitor.graphs.values():
+        "Each graph in visitor.graphs.values() represents the control flow " "graph (CFG) of a single function, which is used to compute its " "cyclomatic complexity."
+        "'PathGraphingAstVisitor' processes the Abstract Syntax Tree (AST) of" "the code and generates a control flow graph for each function it" "encounters, storing these graphs in 'visitor.graphs'. Each entry" "in 'visitor.graphs' corresponds to one function, so iterating over" "it and counting with 'num_functions += 1' accurately captures the" "function count."
+
         num_functions += 1
         complexity = graph.complexity()
         cyclomatic_complexity += complexity
