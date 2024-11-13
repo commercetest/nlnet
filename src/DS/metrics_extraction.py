@@ -49,7 +49,7 @@ from utils.git_utils import get_working_directory_or_git_root
 BATCH_SIZE = 100  # Number of files to process before saving to disk
 
 # Configure logger
-logger.add("metrics_extraction_log", rotation="500 MB", level="INFO")
+logger.add("metrics_extraction.log", rotation="500 MB", level="INFO")
 
 
 def parse_args():
