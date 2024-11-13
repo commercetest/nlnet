@@ -133,11 +133,11 @@ def analyse_test_file(file_path):
     logger.info(f"Starting analysis of test file: {file_path}")
 
     result = {
-        "num_test_cases": 0,
-        "num_assertions": 0,
+        "num_test_cases": -1,
+        "num_assertions": -1,
         "has_setup": False,
         "has_teardown": False,
-        "complexity": 0,
+        "complexity": -1,
     }
 
     parsed_file = read_and_parse_file(file_path)
