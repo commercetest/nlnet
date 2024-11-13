@@ -21,7 +21,8 @@ updating the file in batches as multiple files are processed.
 Notes about the input and output files of this script:
 - Input file : This is the output of the Supabase database after running the
 script `guesslang_to_db.py`. This dataframe contains the repository `file_
-path` amongst other columns like `hosting_provider` and `repo_name`.
+path` and 'guessed_language' amongst other columns like `hosting_provider` and
+`repo_name`.
 - output file: is a dataframe which contains information about testing
 techniques and code complexity. Some columns are `num_assertions`,
 `cyclomatic_complexity`, and `lines_of_code`.
@@ -64,7 +65,8 @@ def parse_args():
         default=Path(
             get_working_directory_or_git_root() / "data" / "guessed_languages_rows.csv"
         ),
-        help="Path to the input CSV file.",
+        help="Path to the input CSV file exported from Supabase with "
+        "file_path, guessed_language, and more.",
     )
 
     parser.add_argument(
@@ -75,7 +77,8 @@ def parse_args():
             / "data"
             / "test_metrics_df_guesslang.csv"
         ),
-        help="Path to the output CSV file.",
+        help="Path to the output CSV file with data on testing techniques and "
+        "code complexity.",
     )
 
     return parser.parse_args()
