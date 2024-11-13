@@ -54,7 +54,8 @@ logger.add("metrics_extraction.log", rotation="500 MB", level="INFO")
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Analyse Python test files and extract metrics."
+        description="Analyse Python test files and general Python code files "
+        "and extract metrics."
     )
 
     parser.add_argument(
