@@ -18,6 +18,14 @@ statements in the function.
 The script saves the results of these analyses to a specified CSV file,
 updating the file in batches as multiple files are processed.
 
+Notes about the input and output files of this script:
+- Input file : This is the output of the Supabase database after running the
+script `guesslang_to_db.py`. This dataframe contains the repository `file_
+path` amongst other columns like `hosting_provider` and `repo_name`.
+- output file: is a dataframe which contains information about testing
+techniques and code complexity. Some columns are `num_assertions`,
+`cyclomatic_complexity`, and `lines_of_code`.
+
 ### Usage:
 To run the script, specify the input and output CSV file paths using the
 command-line arguments `--input` and `--output`. By default, the script
