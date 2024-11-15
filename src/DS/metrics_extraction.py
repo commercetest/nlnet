@@ -179,10 +179,13 @@ def analyse_test_file(file_path):
                             num_assertions += 1
                             logger.debug(f"Found assertion in {node.name}")
 
-            if node.name in ("setUp", "tearDown"):
+            if node.name == "setUp":
                 has_setup = has_setup or node.name == "setUp"
+                logger.debug(f"Found setup method: {node.name}")
+
+            if node.name == "tearDown":
                 has_teardown = has_teardown or node.name == "tearDown"
-                logger.debug(f"Found setup/teardown method: {node.name}")
+                logger.debug(f"Found teardown method: {node.name}")
 
     result.update(
         {
