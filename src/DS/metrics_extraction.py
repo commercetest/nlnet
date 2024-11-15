@@ -272,21 +272,30 @@ if __name__ == "__main__":
     df = pd.read_csv(input_file)
     df_language_python = df[df["guessed_language"] == "Python"]
 
-    final_df_path = output_file
-    logger.info("Apply the analysis to each test file")
-
     # Initialise or load the final Dataframe
-    if Path(final_df_path).exists():
-        final_df = pd.read_csv(final_df_path)
-        logger.info(f"Loaded existing final Dataframe from {final_df_path}")
+    if Path(output_file).exists():
+        final_df = pd.read_csv(output_file)
+        logger.info(f"Loaded existing final Dataframe from {output_file}")
 
     else:
         final_df = pd.DataFrame()
+
+    # Extract already processed file paths
+    processed_files = (
+        set(final_df["file_path"].unique()) if not final_df.empty else set()
+    )
+    logger.info(f"Found {len(processed_files)} already processed files.")
 
     batch_results = []
 
     for idx, row in df_language_python.iterrows():
         file_path = row["file_path"]
+
+        # Skip files already processed
+        if file_path in processed_files:
+            logger.debug(f"Skipping already processed file: {file_path}")
+            continue
+
         test_file_analysis = analyse_test_file(file_path)
         code_file_analysis = analyse_code_file(file_path)
 
@@ -305,17 +314,21 @@ if __name__ == "__main__":
         if len(batch_results) >= BATCH_SIZE:
             batch_df = pd.DataFrame(batch_results)
             final_df = pd.concat([final_df, batch_df], ignore_index=True)
-            final_df.to_csv(final_df_path, index=False)
+            final_df.to_csv(output_file, index=False)
             logger.info(f"Saved analysis results for {len(batch_results)} files")
-            batch_results.clear()  # Clear the batch results after saving
+
+            # Clear the batch results after saving
+            batch_results.clear()
 
     # Save any remaining results after the loop
     if batch_results:
         batch_df = pd.DataFrame(batch_results)
         final_df = pd.concat([final_df, batch_df], ignore_index=True)
-        final_df.to_csv(final_df_path, index=False)
+
+        # Remove duplicates before saving
+        final_df.to_csv(output_file, index=False)
         logger.info(
-            f"Saved final batch of analysis results for " f"{len(batch_results)} files"
+            f"Saved final batch of analysis results for {len(batch_results)}" f"files"
         )
 
-    logger.info(f"Final dataframe saved to {final_df_path}")
+    logger.info(f"Final dataframe saved to {output_file}")
