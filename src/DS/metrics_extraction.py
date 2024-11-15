@@ -235,8 +235,15 @@ def analyse_code_file(file_path):
     visitor.preorder(tree, visitor)
 
     for graph in visitor.graphs.values():
-        "Each graph in visitor.graphs.values() represents the control flow " "graph (CFG) of a single function, which is used to compute its " "cyclomatic complexity."
-        "'PathGraphingAstVisitor' processes the Abstract Syntax Tree (AST) of" "the code and generates a control flow graph for each function it" "encounters, storing these graphs in 'visitor.graphs'. Each entry" "in 'visitor.graphs' corresponds to one function, so iterating over" "it and counting with 'num_functions += 1' accurately captures the" "function count."
+        # Each graph in `visitor.graphs.values()` represents the control flow
+        # graph (CFG) of a single function, which is used to compute its
+        # cyclomatic complexity.
+        # `PathGraphingAstVisitor' processes the Abstract Syntax Tree (AST)
+        # of the code and generates a control flow graph for each function it
+        # encounters, storing these graphs in 'visitor.graphs'. Each entry in
+        # 'visitor.graphs' corresponds to one function, so iterating over it
+        # and counting with 'num_functions += 1' accurately captures the
+        # function count.
 
         num_functions += 1
         complexity = graph.complexity()
