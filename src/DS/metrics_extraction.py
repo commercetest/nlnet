@@ -200,14 +200,13 @@ def analyse_test_file(file_path):
     return result
 
 
-def analyse_code_file(file_path, max_complexity=10):
+def analyse_code_file(file_path):
     """
     Analyses a Python code file to extract code metrics such as cyclomatic
     complexity, lines of code, and the number of functions.
 
     Args:
         file_path (str): The path to the code file.
-        max_complexity (int): The maximum allowed complexity for a function.
 
     Returns:
         dict: A dictionary containing the code metrics.
