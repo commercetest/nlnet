@@ -147,23 +147,27 @@ def analyse_test_file(file_path):
 
     tree, _ = parsed_file
 
-    num_test_cases = 0
-    num_assertions = 0
-    has_setup = False
-    has_teardown = False
-    complexity = 0
-
+    # Initialise counters to 1 on first find (since they start at -1)
     for node in ast.walk(tree):  # Walks through all nodes in the AST
         if isinstance(node, ast.FunctionDef):
             if node.name.startswith("test_"):
-                num_test_cases += 1
-                complexity += 1  # Basic complexity, 1 per function
+                # For first test case, set to 1; for subsequent ones, increment
+                result["num_test_cases"] = (
+                    result["num_test_cases"] + 1 if result["num_test_cases"] >= 0 else 1
+                )
+                # Basic complexity, 1 per function
+                result["complexity"] = (
+                    result["complexity"] + 1 if result["complexity"] >= 0 else 1
+                )
                 logger.debug(f"Found test case: {node.name}")
 
                 for body_node in node.body:  # Iterates over the body of the
                     # function
                     if isinstance(body_node, ast.If):
-                        complexity += 1  # Each 'if' branch increases complexity
+                        # Each 'if' branch increases complexity
+                        result["complexity"] = (
+                            result["complexity"] + 1 if result["complexity"] >= 0 else 1
+                        )
                         logger.debug(
                             f"Incrementing complexity for 'if' in" f" {node.name}"
                         )
@@ -176,26 +180,20 @@ def analyse_test_file(file_path):
                             isinstance(body_node.value.func, ast.Name)
                             and body_node.value.func.id == "assert"
                         ):  # Checks if the function call is an assertion.
-                            num_assertions += 1
+                            result["num_assertions"] = (
+                                result["num_assertions"] + 1
+                                if result["num_assertions"] >= 0
+                                else 1
+                            )
                             logger.debug(f"Found assertion in {node.name}")
 
             if node.name == "setUp":
-                has_setup = has_setup or node.name == "setUp"
+                result["has_setup"] = True
                 logger.debug(f"Found setup method: {node.name}")
 
             if node.name == "tearDown":
-                has_teardown = has_teardown or node.name == "tearDown"
+                result["has_teardown"] = True
                 logger.debug(f"Found teardown method: {node.name}")
-
-    result.update(
-        {
-            "num_test_cases": num_test_cases,
-            "num_assertions": num_assertions,
-            "has_setup": has_setup,
-            "has_teardown": has_teardown,
-            "complexity": complexity,
-        }
-    )
 
     return result
 
