@@ -129,6 +129,8 @@ def analyse_test_file(file_path):
 
     Returns:
            dict: A dictionary containing the analysis results.
+    Raises:
+        ValueError: If the file cannot be parsed successfully.
     """
     logger.info(f"Starting analysis of test file: {file_path}")
 
@@ -142,8 +144,8 @@ def analyse_test_file(file_path):
 
     parsed_file = read_and_parse_file(file_path)
     if parsed_file is None:
-        logger.warning(f"Analysis skipped for file: {file_path}")
-        return result
+        logger.error(f"Analysis skipped for file: {file_path}")
+        raise ValueError(f"Could not pars test file: {file_path}")
 
     tree, _ = parsed_file
 
