@@ -142,6 +142,13 @@ def analyse_test_file(file_path):
         "complexity": -1,
     }
 
+    # Dictionary to collect debug information
+    debug_info = {
+        "test_cases": [],
+        "if_locations": [],
+        "assertion_locations": [],
+    }
+
     parsed_file = read_and_parse_file(file_path)
     if parsed_file is None:
         logger.error(f"Analysis skipped for file: {file_path}")
@@ -161,7 +168,7 @@ def analyse_test_file(file_path):
                 result["complexity"] = (
                     result["complexity"] + 1 if result["complexity"] >= 0 else 1
                 )
-                logger.debug(f"Found test case: {node.name}")
+                debug_info["test_cases"].append(node.name)
 
                 for body_node in node.body:  # Iterates over the body of the
                     # function
@@ -170,9 +177,7 @@ def analyse_test_file(file_path):
                         result["complexity"] = (
                             result["complexity"] + 1 if result["complexity"] >= 0 else 1
                         )
-                        logger.debug(
-                            f"Incrementing complexity for 'if' in" f" {node.name}"
-                        )
+                        debug_info["if_locations"].append(f"'if' in {node.name}")
 
                     if isinstance(body_node, ast.Expr) and isinstance(
                         body_node.value, ast.Call
@@ -187,7 +192,9 @@ def analyse_test_file(file_path):
                                 if result["num_assertions"] >= 0
                                 else 1
                             )
-                            logger.debug(f"Found assertion in {node.name}")
+                            debug_info["assertion_locations"].append(
+                                f"assertion in {node.name}"
+                            )
 
             if node.name == "setUp":
                 result["has_setup"] = True
@@ -196,6 +203,16 @@ def analyse_test_file(file_path):
             if node.name == "tearDown":
                 result["has_teardown"] = True
                 logger.debug(f"Found teardown method: {node.name}")
+
+    logger.debug(
+        f"Analysis results for {file_path}:\n"
+        f"Test cases found ({len(debug_info['test_cases'])}): {', '.join(debug_info['test_cases'])}\n"
+        f"If statements found ({len(debug_info['if_locations'])}): {', '.join(debug_info['if_locations'])}\n"
+        f"Assertions found ({len(debug_info['assertion_locations'])}): {', '.join(debug_info['assertion_locations'])}\n"
+        f"Setup method: {'present' if result['has_setup'] else 'absent'}\n"
+        f"Teardown method: {'present' if result['has_teardown'] else 'absent'}\n"
+        f"Total complexity: {result['complexity']}"
+    )
 
     return result
 
@@ -296,19 +313,56 @@ if __name__ == "__main__":
             logger.debug(f"Skipping already processed file: {file_path}")
             continue
 
-        test_file_analysis = analyse_test_file(file_path)
-        code_file_analysis = analyse_code_file(file_path)
+        try:
+            test_file_analysis = analyse_test_file(file_path)
+            code_file_analysis = analyse_code_file(file_path)
 
-        # Combine the analysis results with the original data
-        analysis_result = {
-            "file_path": file_path,
-            **test_file_analysis,  # This unpacks the dictionary test_file_
-            # analysis and includes all its key-value pairs in the analysis_
-            # result dictionary.
-            **code_file_analysis,
-        }
+            # Combine the analysis results with the original data
+            analysis_result = {
+                "file_path": file_path,
+                **test_file_analysis,  # This unpacks the dictionary test_file_
+                # analysis and includes all its key-value pairs in the analysis_
+                # result dictionary.
+                **code_file_analysis,
+            }
 
-        batch_results.append(analysis_result)
+            batch_results.append(analysis_result)
+
+        except ValueError as e:
+            logger.error(f"Failed to analyse {file_path}: {str(e)}")
+            # Add failed file to results with error indicators
+            analysis_result = {
+                "file_path": file_path,
+                "num_test_cases": -1,
+                "num_assertions": -1,
+                "has_setup": False,
+                "has_teardown": False,
+                "complexity": -1,
+                "cyclomatic_complexity": -1,
+                "lines_of_code": -1,
+                "num_functions": -1,
+                "analysis_error": str(e),
+            }
+            batch_results.append(analysis_result)
+            continue  # Continue with next file
+
+        except Exception as e:
+            logger.error(f"Unexpected error analysing {file_path}: {str(e)}")
+            # Add failed file to results with error indicators
+            analysis_result = {
+                "file_path": file_path,
+                "num_test_cases": -1,
+                "num_assertions": -1,
+                "has_setup": False,
+                "has_teardown": False,
+                "complexity": -1,
+                "cyclomatic_complexity": -1,
+                "lines_of_code": -1,
+                "num_functions": -1,
+                "analysis_error": f"Unexpected error: {str(e)}",
+            }
+            batch_results.append(analysis_result)
+            continue  # Continue with next file
 
         # Save the batch results every BATCH_SIZE files
         if len(batch_results) >= BATCH_SIZE:
