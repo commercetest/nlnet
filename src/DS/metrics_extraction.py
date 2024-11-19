@@ -219,37 +219,46 @@ def analyse_test_file(file_path):
 
 def analyse_code_file(file_path):
     """
-    Analyses a Python code file to extract code metrics such as cyclomatic
-    complexity, lines of code, and the number of functions.
+        Analyses a Python code file to extract code metrics such as cyclomatic
+        complexity, lines of code, and the number of functions.
 
-    Args:
-        file_path (str): The path to the code file.
+        Args:
+            file_path (str): The path to the code file.
 
-    Returns:
-        dict: A dictionary containing the code metrics.
+        Returns:
+            dict: A dictionary containing the code metrics.
+
+        Raises:
+    #         ValueError: If the file cannot be parsed successfully.
     """
 
     logger.info(f"Starting analysis of code file: {file_path}")
 
     result = {
-        "cyclomatic_complexity": 0,
-        "lines_of_code": 0,
-        "num_functions": 0,
+        "cyclomatic_complexity": -1,
+        "lines_of_code": -1,
+        "num_functions": -1,
     }
+
+    # Dictionary to collect debug information
+    debug_info = {"function_complexities": [], "file_stats": {}}
 
     parsed_file = read_and_parse_file(file_path)
     if parsed_file is None:
-        logger.warning(f"Analysis skipped for file: {file_path}")
-        return result
+        logger.error(f"Failed to parse file: {file_path}")
+        raise ValueError(f"Could not parse code file: {file_path}")
 
     tree, content = parsed_file
 
-    num_functions = 0
-    lines_of_code = len(content.splitlines())
-    cyclomatic_complexity = 0
+    # Initialise lines of code directly from content
+    result["lines_of_code"] = len(content.splitlines())
 
-    visitor = PathGraphingAstVisitor()
-    visitor.preorder(tree, visitor)
+    try:
+        visitor = PathGraphingAstVisitor()
+        visitor.preorder(tree, visitor)
+    except Exception as e:
+        logger.error(f"Failed to analyse complexity for {file_path}: {str(e)}")
+        raise ValueError(f"Failed to analyse complexity: {str(e)}")
 
     for graph in visitor.graphs.values():
         # Each graph in `visitor.graphs.values()` represents the control flow
@@ -262,18 +271,32 @@ def analyse_code_file(file_path):
         # and counting with 'num_functions += 1' accurately captures the
         # function count.
 
-        num_functions += 1
-        complexity = graph.complexity()
-        cyclomatic_complexity += complexity
-        logger.debug(f"Function {graph.name} has complexity {complexity}")
+        result["num_functions"] = (
+            result["num_functions"] + 1 if result["num_functions"] >= 0 else 1
+        )
 
-    result.update(
-        {
-            "cyclomatic_complexity": cyclomatic_complexity,
-            "lines_of_code": lines_of_code,
-            "num_functions": num_functions,
+        complexity = graph.complexity()
+        result["cyclomatic_complexity"] = (
+            result["cyclomatic_complexity"] + complexity
+            if result["cyclomatic_complexity"] >= 0
+            else complexity
+        )
+
+        # Collect debug information
+        debug_info["function_complexities"].append(
+            f"{graph.name}: " f"complexity:{complexity}"
+        )
+
+        # Collect file statistics for debug info
+        debug_info["file_stats"] = {
+            "total_lines": result["lines_of_code"],
+            "total_functions": result["num_functions"],
+            "avg_complexity": (
+                result["cyclomatic_complexity"] / result["num_functions"]
+                if result["num_functions"] > 0
+                else 0
+            ),
         }
-    )
 
     return result
 
