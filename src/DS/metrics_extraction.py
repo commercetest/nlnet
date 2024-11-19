@@ -118,6 +118,17 @@ def read_and_parse_file(file_path):
     return None
 
 
+def get_parsed_arg(file_path):
+    """
+    Get AST tree and content from file, raising ValueError if parsing fails.
+    """
+    parsed_file = read_and_parse_file(file_path)
+    if parsed_file is None:
+        logger.error(f"Failed to parse file: {file_path}")
+        raise ValueError(f"Could not parse file: {file_path}")
+    return parsed_file
+
+
 def analyse_test_file(file_path):
     """
     Analyses a Python test file to extract the number of test cases,
@@ -129,8 +140,6 @@ def analyse_test_file(file_path):
 
     Returns:
            dict: A dictionary containing the analysis results.
-    Raises:
-        ValueError: If the file cannot be parsed successfully.
     """
     logger.info(f"Starting analysis of test file: {file_path}")
 
@@ -149,12 +158,7 @@ def analyse_test_file(file_path):
         "assertion_locations": [],
     }
 
-    parsed_file = read_and_parse_file(file_path)
-    if parsed_file is None:
-        logger.error(f"Analysis skipped for file: {file_path}")
-        raise ValueError(f"Could not pars test file: {file_path}")
-
-    tree, _ = parsed_file
+    tree, _ = get_parsed_arg(file_path)
 
     # Initialise counters to 1 on first find (since they start at -1)
     for node in ast.walk(tree):  # Walks through all nodes in the AST
@@ -219,17 +223,14 @@ def analyse_test_file(file_path):
 
 def analyse_code_file(file_path):
     """
-        Analyses a Python code file to extract code metrics such as cyclomatic
-        complexity, lines of code, and the number of functions.
+    Analyses a Python code file to extract code metrics such as cyclomatic
+    complexity, lines of code, and the number of functions.
 
-        Args:
-            file_path (str): The path to the code file.
+    Args:
+        file_path (str): The path to the code file.
 
-        Returns:
-            dict: A dictionary containing the code metrics.
-
-        Raises:
-    #         ValueError: If the file cannot be parsed successfully.
+    Returns:
+        dict: A dictionary containing the code metrics.
     """
 
     logger.info(f"Starting analysis of code file: {file_path}")
@@ -243,12 +244,7 @@ def analyse_code_file(file_path):
     # Dictionary to collect debug information
     debug_info = {"function_complexities": [], "file_stats": {}}
 
-    parsed_file = read_and_parse_file(file_path)
-    if parsed_file is None:
-        logger.error(f"Failed to parse file: {file_path}")
-        raise ValueError(f"Could not parse code file: {file_path}")
-
-    tree, content = parsed_file
+    tree, content = get_parsed_arg(file_path)
 
     # Initialise lines of code directly from content
     result["lines_of_code"] = len(content.splitlines())
