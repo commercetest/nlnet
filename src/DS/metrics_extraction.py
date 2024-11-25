@@ -97,7 +97,7 @@ def read_and_parse_file(file_path):
     """
     logger.debug(f"Attempting to read and parse: {file_path}")
     if not file_path.endswith(".py"):
-        logger.info(f"Skipping non-python file {file_path}")
+        logger.debug(f"Skipping non-python file {file_path}")
         return None
 
     try:
@@ -401,7 +401,7 @@ if __name__ == "__main__":
         # Remove duplicates before saving
         final_df.to_csv(output_file, index=False)
         logger.info(
-            f"Saved final batch of analysis results for {len(batch_results)}" f"files"
+            f"Saved final batch of analysis results for {len(batch_results)}" f" files"
         )
 
     logger.info(f"Final dataframe saved to {output_file}")
