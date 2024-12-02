@@ -40,6 +40,18 @@ I'm using miniforge to manage the python environment including packages.
 ```
 conda create --name commercetest-nlnet python=3.10 pandas
 conda activate commercetest-nlnet
+```
+
+## Dependencies
+This project uses the following key dependencies:
+
+- `tensorflow==2.13.1`
+- `pandas==2.0.3`
+- `numpy==1.24.3` (Pinned to resolve compatibility issues with TensorFlow and
+Pandas)
+
+Please ensure these versions are used to avoid dependency conflicts.
+```
 pip install -r requirements.txt
 ```
 
