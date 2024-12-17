@@ -32,3 +32,26 @@ testpaths = [
     "tests",
 ]
 python_files = ["test_*.py", "*_test.py"]
+
+[tool.poetry]
+name = "nlnet"
+version = "0.1.0"
+description = "NLNet project for analyzing test files in repositories"
+authors = ["Your Name <your.email@example.com>"]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.10"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+include = '\.pyi?$'
+
+[tool.ruff]
+target-version = "py39"
+line-length = 88
+select = ["E", "F", "B", "I"]
