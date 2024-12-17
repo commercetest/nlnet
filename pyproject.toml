@@ -1,0 +1,34 @@
+
+
+[tool.poetry]
+name = "nlnet"
+version = "0.1.0"
+description = "NLNet project for analyzing test files in repositories"
+authors = ["Your Name <your.email@example.com>"]
+python = ">=3.7,<3.8"
+
+[tool.poetry.dependencies]
+python = ">=3.7,<3.8"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py37']
+include = '\.pyi?$'
+
+[tool.ruff]
+target-version = "py37"
+line-length = 88
+select = ["E", "F", "B", "I"]
+ignore = []
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
+python_files = ["test_*.py", "*_test.py"]

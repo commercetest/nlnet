@@ -25,3 +25,30 @@ git+https://github.com/commercetest/guesslang.git@master
 
 mccabe~=0.7.0
 psutil~=5.9.8
+
+
+# Core ML Dependencies
+guesslang==2.0.1
+tensorflow==1.15.5
+
+# Data Processing
+pandas==1.3.5
+numpy==1.21.6
+
+# Code Analysis
+mccabe==0.7.0
+ast==0.0.2
+
+# Utilities
+loguru==0.7.0
+tqdm==4.65.0
+pytest==7.0.1
+requests==2.31.0
+
+# Database
+supabase==1.0.3
+
+# Development Tools
+black==22.3.0
+ruff==0.1.3
+pre-commit==2.21.0
