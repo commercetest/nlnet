@@ -38,9 +38,13 @@ Example:
 
 """
 
+from typing import Dict, Tuple, Optional, Any, Union, List
 import argparse
 import ast
+import hashlib
 import pandas as pd
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from functools import lru_cache
 from mccabe import PathGraphingAstVisitor
 from loguru import logger
 from pathlib import Path
@@ -308,11 +312,10 @@ if __name__ == "__main__":
     df = pd.read_csv(input_file)
     df_language_python = df[df["guessed_language"] == "Python"]
 
-    # Initialise or load the final Dataframe
+    # Initialize or load the final DataFrame
     if Path(output_file).exists():
         final_df = pd.read_csv(output_file)
-        logger.info(f"Loaded existing final Dataframe from {output_file}")
-
+        logger.info(f"Loaded existing final DataFrame from {output_file}")
     else:
         final_df = pd.DataFrame()
 
@@ -322,86 +325,179 @@ if __name__ == "__main__":
     )
     logger.info(f"Found {len(processed_files)} already processed files.")
 
-    batch_results = []
+    # Get unprocessed files
+    unprocessed_files = [
+        Path(row["file_path"])
+        for _, row in df_language_python.iterrows()
+        if row["file_path"] not in processed_files
+    ]
 
-    for idx, row in df_language_python.iterrows():
-        file_path = row["file_path"]
+    if not unprocessed_files:
+        logger.info("No new files to process.")
+        exit(0)
 
-        # Skip files already processed
-        if file_path in processed_files:
-            logger.debug(f"Skipping already processed file: {file_path}")
-            continue
+    logger.info(f"Processing {len(unprocessed_files)} files in parallel...")
 
-        try:
-            test_file_analysis = analyse_test_file(file_path)
-            code_file_analysis = analyse_code_file(file_path)
+    # Create MetricsCollector instance
+    collector = MetricsCollector()
 
-            # Combine the analysis results with the original data
-            analysis_result = {
-                "file_path": file_path,
-                **test_file_analysis,  # This unpacks the dictionary test_file_
-                # analysis and includes all its key-value pairs in the analysis_
-                # result dictionary.
-                **code_file_analysis,
-            }
+    # Process files in parallel
+    results = process_files_parallel(unprocessed_files)
 
-            batch_results.append(analysis_result)
-
-        except ValueError as e:
-            logger.error(f"Failed to analyse {file_path}: {str(e)}")
-            # Add failed file to results with error indicators
-            analysis_result = {
-                "file_path": file_path,
-                "num_test_cases": -1,
-                "num_assertions": -1,
-                "has_setup": False,
-                "has_teardown": False,
-                "complexity": -1,
-                "cyclomatic_complexity": -1,
-                "lines_of_code": -1,
-                "num_functions": -1,
-                "analysis_error": str(e),
-            }
-            batch_results.append(analysis_result)
-            continue  # Continue with next file
-
-        except Exception as e:
-            logger.error(f"Unexpected error analysing {file_path}: {str(e)}")
-            # Add failed file to results with error indicators
-            analysis_result = {
-                "file_path": file_path,
-                "num_test_cases": -1,
-                "num_assertions": -1,
-                "has_setup": False,
-                "has_teardown": False,
-                "complexity": -1,
-                "cyclomatic_complexity": -1,
-                "lines_of_code": -1,
-                "num_functions": -1,
-                "analysis_error": f"Unexpected error: {str(e)}",
-            }
-            batch_results.append(analysis_result)
-            continue  # Continue with next file
-
-        # Save the batch results every BATCH_SIZE files
-        if len(batch_results) >= BATCH_SIZE:
-            batch_df = pd.DataFrame(batch_results)
-            final_df = pd.concat([final_df, batch_df], ignore_index=True)
-            final_df.to_csv(output_file, index=False)
-            logger.info(f"Saved analysis results for {len(batch_results)} files")
-
-            # Clear the batch results after saving
-            batch_results.clear()
-
-    # Save any remaining results after the loop
-    if batch_results:
-        batch_df = pd.DataFrame(batch_results)
+    # Convert results to DataFrame
+    if results:
+        batch_df = pd.DataFrame(results)
         final_df = pd.concat([final_df, batch_df], ignore_index=True)
 
-        # Remove duplicates before saving
+        # Remove duplicates and save
+        final_df.drop_duplicates(subset=["file_path"], keep="last", inplace=True)
         final_df.to_csv(output_file, index=False)
-        logger.info(
-            f"Saved final batch of analysis results for {len(batch_results)}" f" files"
-        )
+        logger.info(f"Saved analysis results for {len(results)} files")
 
     logger.info(f"Final dataframe saved to {output_file}")
+
+    @lru_cache(maxsize=1000)
+    def _get_file_hash(self, file_path: Union[str, Path]) -> str:
+        """Get hash of file contents for caching."""
+        with open(file_path, "rb") as f:
+            return hashlib.md5(f.read()).hexdigest()
+
+    def _process_test_function(
+        self, node: ast.FunctionDef, result: Dict[str, Any]
+    ) -> None:
+        """Process a test function node to extract metrics."""
+        for body_node in ast.walk(node):
+            if isinstance(body_node, ast.If):
+                result["complexity"] += 1
+            elif (
+                isinstance(body_node, ast.Expr)
+                and isinstance(body_node.value, ast.Call)
+                and isinstance(body_node.value.func, ast.Name)
+                and body_node.value.func.id == "assert"
+            ):
+                result["num_assertions"] += 1
+
+    def analyse_test_file(self, file_path: Union[str, Path]) -> Dict[str, Any]:
+        """
+        Analyses a Python test file to extract metrics.
+
+        Args:
+            file_path: Path to the Python test file
+
+        Returns:
+            Dictionary containing extracted metrics
+        """
+        logger.info(f"Starting analysis of test file: {file_path}")
+
+        # Check cache first
+        file_hash = self._get_file_hash(file_path)
+        if file_hash in self._metrics_cache:
+            return self._metrics_cache[file_hash]
+
+        result = {
+            "num_test_cases": 0,
+            "num_assertions": 0,
+            "has_setup": False,
+            "has_teardown": False,
+            "complexity": 0,
+        }
+
+        parsed = read_and_parse_file(file_path)
+        if not parsed:
+            return result
+
+        tree, _ = parsed
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                if node.name.startswith("test_"):
+                    result["num_test_cases"] += 1
+                    result["complexity"] += 1
+                    self._process_test_function(node, result)
+                elif node.name in ("setUp", "tearDown"):
+                    result[f"has_{node.name.lower()}"] = True
+
+        # Cache the result
+        self._metrics_cache[file_hash] = result
+        return result
+
+    def analyse_code_file(self, file_path: Union[str, Path]) -> Dict[str, Any]:
+        """
+        Analyses a Python code file to extract metrics.
+
+        Args:
+            file_path: Path to the Python code file
+
+        Returns:
+            Dictionary containing extracted metrics
+        """
+        logger.info(f"Starting analysis of code file: {file_path}")
+
+        # Check cache first
+        file_hash = self._get_file_hash(file_path)
+        if file_hash in self._metrics_cache:
+            return self._metrics_cache[file_hash]
+
+        result = {
+            "cyclomatic_complexity": 0,
+            "lines_of_code": 0,
+            "num_functions": 0,
+        }
+
+        parsed = read_and_parse_file(file_path)
+        if not parsed:
+            return result
+
+        tree, content = parsed
+
+        # Calculate lines of code
+        result["lines_of_code"] = len(content.splitlines())
+
+        try:
+            visitor = PathGraphingAstVisitor()
+            visitor.preorder(tree, visitor)
+
+            for graph in visitor.graphs.values():
+                result["num_functions"] += 1
+                result["cyclomatic_complexity"] += graph.complexity()
+
+        except Exception as e:
+            logger.error(f"Failed to analyse complexity for {file_path}: {str(e)}")
+
+        # Cache the result
+        self._metrics_cache[file_hash] = result
+        return result
+
+
+def process_files_parallel(
+    file_paths: List[Path], num_workers: int = 4
+) -> List[Dict[str, Any]]:
+    """
+    Process multiple files in parallel using a process pool.
+
+    Args:
+        file_paths: List of paths to process
+        num_workers: Number of parallel workers
+
+    Returns:
+        List of results dictionaries
+    """
+    collector = MetricsCollector()
+    results = []
+
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        future_to_path = {
+            executor.submit(collector.analyse_test_file, path): path
+            for path in file_paths
+        }
+
+        for future in as_completed(future_to_path):
+            path = future_to_path[future]
+            try:
+                result = future.result()
+                results.append({"file_path": str(path), **result})
+            except Exception as e:
+                logger.error(f"Failed to process {path}: {e}")
+                results.append({"file_path": str(path), "error": str(e)})
+
+    return results
