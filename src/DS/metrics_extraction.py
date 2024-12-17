@@ -58,6 +58,45 @@ BATCH_SIZE = 100  # Number of files to process before saving to disk
 logger.add("metrics_extraction.log", rotation="500 MB", level="INFO")
 
 
+def process_files_parallel(
+    files: List[Path], num_workers: int = None
+) -> List[Dict[str, Any]]:
+    """Process multiple files in parallel using a process pool."""
+    if num_workers is None:
+        num_workers = os.cpu_count() or 1
+
+    results = []
+    collector = MetricsCollector()
+
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        future_to_path = {
+            executor.submit(collector.analyse_test_file, path): path for path in files
+        }
+
+        for future in as_completed(future_to_path):
+            path = future_to_path[future]
+            try:
+                result = future.result()
+                if result:  # Only add non-None results
+                    results.append(result)
+            except Exception as e:
+                logger.error(f"Failed to process {path}: {e}")
+                # Add error result
+                results.append(
+                    {
+                        "file_path": str(path),
+                        "num_test_cases": 0,
+                        "num_assertions": 0,
+                        "has_setup": False,
+                        "has_teardown": False,
+                        "complexity": 0,
+                        "error": str(e),
+                    }
+                )
+
+    return results
+
+
 class MetricsCollector:
     """Collects and processes code metrics from Python files."""
 
@@ -74,13 +113,68 @@ class MetricsCollector:
         for i in range(0, len(files), self.batch_size):
             batch = files[i : i + self.batch_size]
             batch_results = process_files_parallel(
-                batch,
-                self.analyse_test_file,
-                num_workers=min(len(batch), os.cpu_count() or 1),
+                batch, num_workers=min(len(batch), os.cpu_count() or 1)
             )
             results.extend(batch_results)
 
         return results
+
+    def analyse_test_file(self, file_path: Path) -> Dict[str, Any]:
+        """Analyse a Python test file with caching support."""
+        if self.enable_caching:
+            cache_key = str(file_path)
+            if cache_key in self._cache:
+                return self._cache[cache_key]
+
+        result = self._analyse_test_file_impl(file_path)
+
+        if self.enable_caching:
+            self._cache[str(file_path)] = result
+
+        return result
+
+    def _analyse_test_file_impl(self, file_path: Path) -> Dict[str, Any]:
+        """Implementation of test file analysis."""
+        result = {
+            "file_path": str(file_path),
+            "num_test_cases": 0,
+            "num_assertions": 0,
+            "has_setup": False,
+            "has_teardown": False,
+            "complexity": 0,
+        }
+
+        parsed = read_and_parse_file(file_path)
+        if not parsed:
+            return result
+
+        tree, _ = parsed
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                if node.name.startswith("test_"):
+                    result["num_test_cases"] += 1
+                    result["complexity"] += 1
+                    self._process_test_function(node, result)
+                elif node.name in ("setUp", "tearDown"):
+                    result[f"has_{node.name.lower()}"] = True
+
+        return result
+
+    def _process_test_function(
+        self, node: ast.FunctionDef, result: Dict[str, Any]
+    ) -> None:
+        """Process a test function node to extract metrics."""
+        for body_node in ast.walk(node):
+            if isinstance(body_node, ast.If):
+                result["complexity"] += 1
+            elif (
+                isinstance(body_node, ast.Expr)
+                and isinstance(body_node.value, ast.Call)
+                and isinstance(body_node.value.func, ast.Name)
+                and body_node.value.func.id == "assert"
+            ):
+                result["num_assertions"] += 1
 
     def analyse_test_file(self, file_path: Path) -> Dict[str, Any]:
         """Analyse a Python test file with caching support."""
@@ -261,37 +355,32 @@ def parse_args():
     return parser.parse_args()
 
 
-def read_and_parse_file(file_path):
+def read_and_parse_file(file_path: Union[str, Path]) -> Optional[Tuple[ast.AST, str]]:
     """
     Reads and parses a Python file into an AST.
 
     Args:
-        file_path (str): The path to the Python file.
+        file_path: The path to the Python file (str or Path).
 
     Returns:
         tuple: A tuple containing the AST tree and the file content, or
         None if there's an error.
     """
     logger.debug(f"Attempting to read and parse: {file_path}")
-    if not file_path.endswith(".py"):
+    if not str(file_path).endswith(".py"):
         logger.debug(f"Skipping non-python file {file_path}")
         return None
 
     try:
         with open(file_path, "r", encoding="utf-8") as file:
             content = file.read()
-            tree = ast.parse(content, filename=file_path)
+            tree = ast.parse(content, filename=str(file_path))
             logger.debug(f"Successfully parsed file: {file_path}")
             return tree, content
-    except SyntaxError as e:
-        logger.error(f"Syntax error in file {file_path}: {e}")
-    except UnicodeDecodeError as e:
-        logger.error(f"Unicode decode error in file {file_path}: {e}")
-    except FileNotFoundError as e:
-        logger.error(f"File not found: {file_path}: {e}")
+    except (SyntaxError, UnicodeDecodeError, FileNotFoundError) as e:
+        logger.error(f"{type(e).__name__} in file {file_path}: {e}")
     except Exception as e:
         logger.error(f"Unexpected error processing file {file_path}: {e}")
-
     return None
 
 
