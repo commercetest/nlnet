@@ -13,7 +13,7 @@ backoff~=2.2.1
 requests-ratelimiter~=0.6.0
 tqdm~=4.66.4
 python-dotenv~=1.0.1
-typing-extensions~=4.12.2
+typing-extensions<4.6.0,>=3.6.6  # Updated to be compatible with tensorflow
 psutil~=5.9.8
 
 # Data Formats and Visualization
