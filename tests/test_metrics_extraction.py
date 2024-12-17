@@ -254,3 +254,195 @@ def test_various_test_patterns(
 
     for metric, expected in expected_metrics.items():
         assert result[metric] == expected
+
+
+import pytest
+import time
+from pathlib import Path
+import ast
+from src.DS.metrics_extraction import (
+    MetricsCollector,
+    read_and_parse_file,
+    process_files_parallel
+)
+
+@pytest.fixture
+def sample_repo(tmp_path):
+    """Create a sample repository structure with test files."""
+    repo_dir = tmp_path / "sample_repo"
+    repo_dir.mkdir()
+    
+    test_files = {
+        "test_basic.py": """
+def test_simple():
+    assert True
+""",
+        "test_complex.py": """
+import unittest
+
+class TestComplex(unittest.TestCase):
+    def setUp(self):
+        self.value = 42
+        
+    def test_value(self):
+        assert self.value == 42
+        if self.value > 0:
+            assert True
+            
+    def tearDown(self):
+        self.value = None
+""",
+        "not_a_test.py": """
+def regular_function():
+    pass
+"""
+    }
+    
+    for filename, content in test_files.items():
+        (repo_dir / filename).write_text(content)
+    
+    return repo_dir
+
+@pytest.fixture
+def metrics_collector():
+    """Create a MetricsCollector instance with caching enabled."""
+    return MetricsCollector(enable_caching=True)
+
+def test_batch_processing(sample_repo, metrics_collector):
+    """Test processing multiple files in a batch."""
+    results = metrics_collector.process_directory(sample_repo)
+    assert len(results) == 3
+    
+    # Check test file metrics
+    test_files = [r for r in results if r["file_path"].name.startswith("test_")]
+    assert len(test_files) == 2
+    
+    # Verify complex test file metrics
+    complex_test = next(r for r in results if "complex" in r["file_path"].name)
+    assert complex_test["num_test_cases"] == 1
+    assert complex_test["has_setup"] is True
+    assert complex_test["has_teardown"] is True
+
+def test_cache_effectiveness(sample_repo, metrics_collector):
+    """Test that caching improves performance on repeated analysis."""
+    # First run
+    start_time = time.time()
+    first_results = metrics_collector.process_directory(sample_repo)
+    first_duration = time.time() - start_time
+    
+    # Second run (should use cache)
+    start_time = time.time()
+    second_results = metrics_collector.process_directory(sample_repo)
+    second_duration = time.time() - start_time
+    
+    # Cache should make second run faster
+    assert second_duration < first_duration
+    # Results should be identical
+    assert first_results == second_results
+
+def test_read_and_parse_file(sample_repo):
+    """Test file parsing functionality."""
+    test_file = sample_repo / "test_basic.py"
+    result = read_and_parse_file(test_file)
+    assert result is not None
+    tree, content = result
+    assert isinstance(tree, ast.AST)
+    assert isinstance(content, str)
+    assert "test_simple" in content
+
+def test_error_handling(tmp_path):
+    """Test handling of invalid files."""
+    # Test non-existent file
+    assert read_and_parse_file(tmp_path / "nonexistent.py") is None
+    
+    # Test invalid Python syntax
+    invalid_file = tmp_path / "invalid.py"
+    invalid_file.write_text("def invalid_syntax:")
+    assert read_and_parse_file(invalid_file) is None
+
+import pytest
+from pathlib import Path
+import ast
+import time
+import tempfile
+import shutil
+from src.DS.metrics_extraction import (
+    MetricsCollector,
+    read_and_parse_file,
+    process_files_parallel
+)
+
+@pytest.fixture
+def sample_repo(tmp_path):
+    """Create a sample repository structure with test files."""
+    repo_dir = tmp_path / "sample_repo"
+    repo_dir.mkdir()
+    
+    # Create test files
+    test_files = {
+        "test_basic.py": """
+def test_simple():
+    assert True
+""",
+        "test_complex.py": """
+import unittest
+
+class TestComplex(unittest.TestCase):
+    def setUp(self):
+        self.value = 42
+        
+    def test_value(self):
+        assert self.value == 42
+        if self.value > 0:
+            assert True
+            
+    def tearDown(self):
+        self.value = None
+""",
+        "not_a_test.py": """
+def regular_function():
+    pass
+"""
+    }
+    
+    for filename, content in test_files.items():
+        (repo_dir / filename).write_text(content)
+    
+    return repo_dir
+
+@pytest.fixture
+def metrics_collector():
+    """Create a MetricsCollector instance with caching enabled."""
+    return MetricsCollector(enable_caching=True)
+
+def test_batch_processing(sample_repo, metrics_collector):
+    """Test processing multiple files in a batch."""
+    results = metrics_collector.process_directory(sample_repo)
+    assert len(results) == 3
+    
+    # Check test file metrics
+    test_files = [r for r in results if r["file_path"].name.startswith("test_")]
+    assert len(test_files) == 2
+    
+    # Verify complex test file metrics
+    complex_test = next(r for r in results if "complex" in r["file_path"].name)
+    assert complex_test["num_test_cases"] == 1
+    assert complex_test["has_setup"] is True
+    assert complex_test["has_teardown"] is True
+
+def test_cache_effectiveness(sample_repo, metrics_collector):
+    """Test that caching improves performance on repeated analysis."""
+    # First run
+    start_time = time.time()
+    first_results = metrics_collector.process_directory(sample_repo)
+    first_duration = time.time() - start_time
+    
+    # Second run (should use cache)
+    start_time = time.time()
+    second_results = metrics_collector.process_directory(sample_repo)
+    second_duration = time.time() - start_time
+    
+    # Cache should make second run faster
+    assert second_duration < first_duration
+    # Results should be identical
+    assert first_results == second_results

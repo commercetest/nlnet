@@ -42,6 +42,7 @@ from typing import Dict, Tuple, Optional, Any, Union, List
 import argparse
 import ast
 import hashlib
+import os
 import pandas as pd
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import lru_cache
@@ -55,6 +56,178 @@ BATCH_SIZE = 100  # Number of files to process before saving to disk
 
 # Configure logger
 logger.add("metrics_extraction.log", rotation="500 MB", level="INFO")
+
+
+class MetricsCollector:
+    """Collects and processes code metrics from Python files."""
+
+    def __init__(self, enable_caching: bool = True, batch_size: int = 100):
+        self.enable_caching = enable_caching
+        self.batch_size = batch_size
+        self._cache = {}
+
+    def process_directory(self, directory: Path) -> List[Dict[str, Any]]:
+        """Process all Python files in a directory and its subdirectories."""
+        results = []
+        files = list(directory.rglob("*.py"))
+
+        for i in range(0, len(files), self.batch_size):
+            batch = files[i : i + self.batch_size]
+            batch_results = process_files_parallel(
+                batch,
+                self.analyse_test_file,
+                num_workers=min(len(batch), os.cpu_count() or 1),
+            )
+            results.extend(batch_results)
+
+        return results
+
+    def analyse_test_file(self, file_path: Path) -> Dict[str, Any]:
+        """Analyse a Python test file with caching support."""
+        if self.enable_caching:
+            cache_key = str(file_path)
+            if cache_key in self._cache:
+                return self._cache[cache_key]
+
+        result = self._analyse_test_file_impl(file_path)
+
+        if self.enable_caching:
+            self._cache[str(file_path)] = result
+
+        return result
+
+    def _analyse_test_file_impl(self, file_path: Path) -> Dict[str, Any]:
+        """Implementation of test file analysis."""
+        result = {
+            "file_path": file_path,
+            "num_test_cases": 0,
+            "num_assertions": 0,
+            "has_setup": False,
+            "has_teardown": False,
+            "complexity": 0,
+        }
+
+        parsed = read_and_parse_file(file_path)
+        if not parsed:
+            return result
+
+        tree, _ = parsed
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                if node.name.startswith("test_"):
+                    result["num_test_cases"] += 1
+                    result["complexity"] += 1
+                    self._process_test_function(node, result)
+                elif node.name in ("setUp", "tearDown"):
+                    result[f"has_{node.name.lower()}"] = True
+
+        return result
+
+    def _process_test_function(
+        self, node: ast.FunctionDef, result: Dict[str, Any]
+    ) -> None:
+        """Process a test function node to extract metrics."""
+        for body_node in ast.walk(node):
+            if isinstance(body_node, ast.If):
+                result["complexity"] += 1
+            elif (
+                isinstance(body_node, ast.Expr)
+                and isinstance(body_node.value, ast.Call)
+                and isinstance(body_node.value.func, ast.Name)
+                and body_node.value.func.id == "assert"
+            ):
+                result["num_assertions"] += 1
+
+
+class MetricsCollector:
+    """Collects and processes code metrics from Python files."""
+
+    def __init__(self, enable_caching: bool = True, batch_size: int = BATCH_SIZE):
+        self.enable_caching = enable_caching
+        self.batch_size = batch_size
+        self._cache = {}
+
+    @lru_cache(maxsize=1000)
+    def _get_file_hash(self, file_path: Union[str, Path]) -> str:
+        """Get hash of file contents for caching."""
+        with open(file_path, "rb") as f:
+            return hashlib.md5(f.read()).hexdigest()
+
+    def process_directory(self, directory: Path) -> List[Dict[str, Any]]:
+        """Process all Python files in a directory and its subdirectories."""
+        results = []
+        files = list(directory.rglob("*.py"))
+
+        for i in range(0, len(files), self.batch_size):
+            batch = files[i : i + self.batch_size]
+            batch_results = process_files_parallel(
+                batch,
+                self.analyse_test_file,
+                num_workers=min(len(batch), os.cpu_count() or 1),
+            )
+            results.extend(batch_results)
+
+        return results
+
+    def analyse_test_file(self, file_path: Union[str, Path]) -> Dict[str, Any]:
+        """Analyses a Python test file with caching based on file hash."""
+        if self.enable_caching:
+            file_hash = self._get_file_hash(file_path)
+            cached = self._cache.get(file_hash)
+            if cached:
+                return cached
+
+        result = self._analyse_test_file_impl(file_path)
+
+        if self.enable_caching:
+            self._cache[file_hash] = result
+        return result
+
+    def _analyse_test_file_impl(self, file_path: Union[str, Path]) -> Dict[str, Any]:
+        """Implementation of test file analysis."""
+        logger.info(f"Starting analysis of test file: {file_path}")
+
+        result = {
+            "file_path": file_path,
+            "num_test_cases": 0,
+            "num_assertions": 0,
+            "has_setup": False,
+            "has_teardown": False,
+            "complexity": 0,
+        }
+
+        parsed = read_and_parse_file(file_path)
+        if not parsed:
+            return result
+
+        tree, _ = parsed
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                if node.name.startswith("test_"):
+                    result["num_test_cases"] += 1
+                    result["complexity"] += 1
+                    self._process_test_function(node, result)
+                elif node.name in ("setUp", "tearDown"):
+                    result[f"has_{node.name.lower()}"] = True
+
+        return result
+
+    def _process_test_function(
+        self, node: ast.FunctionDef, result: Dict[str, Any]
+    ) -> None:
+        """Process a test function node to extract metrics."""
+        for body_node in ast.walk(node):
+            if isinstance(body_node, ast.If):
+                result["complexity"] += 1
+            elif (
+                isinstance(body_node, ast.Expr)
+                and isinstance(body_node.value, ast.Call)
+                and isinstance(body_node.value.func, ast.Name)
+                and body_node.value.func.id == "assert"
+            ):
+                result["num_assertions"] += 1
 
 
 def parse_args():
