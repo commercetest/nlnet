@@ -67,14 +67,9 @@ description = "NLnet project for analyzing test frameworks"
 authors = ["Your Name <your.email@example.com>"]
 python = ">=3.9,<3.10"
 
-[tool.poetry.dependencies]
-python = ">=3.9,<3.10"
-
 [tool.ruff]
 line-length = 88
 target-version = "py39"
-
-[tool.ruff.lint]
 select = [
     "E",  # pycodestyle errors
     "W",  # pycodestyle warnings
