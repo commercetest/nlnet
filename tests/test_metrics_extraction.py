@@ -199,10 +199,12 @@ def test_metrics_collector_error_handling(metrics_collector, tmp_path):
 def test_non_test_file_analysis(metrics_collector, tmp_path):
     """Test analysis of non-test Python file."""
     regular_file = tmp_path / "regular.py"
-    regular_file.write_text("""
+    regular_file.write_text(
+        """
 def regular_function():
     pass
-""")
+"""
+    )
 
     result = metrics_collector.analyse_test_file(regular_file)
     assert result["num_test_cases"] == 0
@@ -254,3 +256,139 @@ def test_various_test_patterns(
 
     for metric, expected in expected_metrics.items():
         assert result[metric] == expected
+
+
+import pytest
+from pathlib import Path
+import ast
+import time
+from src.DS.metrics_extraction import MetricsCollector, process_files_parallel
+
+
+@pytest.fixture
+def metrics_collector():
+    """Create a MetricsCollector instance."""
+    return MetricsCollector()
+
+
+@pytest.fixture
+def sample_test_file(tmp_path):
+    """Create a sample test file."""
+    content = """
+def setUp():
+    pass
+
+def test_something():
+    assert True
+    if True:
+        assert False
+
+def test_another():
+    assert 1 == 1
+
+def tearDown():
+    pass
+"""
+    file_path = tmp_path / "test_sample.py"
+    file_path.write_text(content)
+    return file_path
+
+
+def test_basic_metrics(metrics_collector, sample_test_file):
+    """Test basic metric collection."""
+    result = metrics_collector.analyse_test_file(sample_test_file)
+
+    assert result["num_test_cases"] == 2
+    assert result["num_assertions"] == 3
+    assert result["has_setup"] is True
+    assert result["has_teardown"] is True
+    assert result["complexity"] == 3  # 2 test functions + 1 if statement
+
+
+def test_caching(metrics_collector, sample_test_file):
+    """Test that caching works."""
+    # First call
+    result1 = metrics_collector.analyse_test_file(sample_test_file)
+
+    # Second call should use cache
+    result2 = metrics_collector.analyse_test_file(sample_test_file)
+
+    assert result1 == result2
+    assert metrics_collector._cache  # Cache should not be empty
+
+
+def test_cache_invalidation(metrics_collector, tmp_path):
+    """Test cache invalidation when file content changes."""
+    test_file = tmp_path / "changing_test.py"
+
+    # First version
+    test_file.write_text("def test_one(): assert True")
+    result1 = metrics_collector.analyse_test_file(test_file)
+
+    # Modified version
+    test_file.write_text("def test_one(): assert True\ndef test_two(): assert False")
+    result2 = metrics_collector.analyse_test_file(test_file)
+
+    assert result1 != result2
+    assert result1["num_test_cases"] == 1
+    assert result2["num_test_cases"] == 2
+
+
+def test_parallel_processing(tmp_path):
+    """Test parallel processing of multiple files."""
+    files = []
+    for i in range(3):
+        file_path = tmp_path / f"test_{i}.py"
+        file_path.write_text(f"def test_func_{i}():\n    assert True")
+        files.append(file_path)
+
+    results = process_files_parallel(files, num_workers=2)
+
+    assert len(results) == 3
+    for result in results:
+        assert result["num_test_cases"] == 1
+        assert result["num_assertions"] == 1
+
+
+def test_error_handling(metrics_collector, tmp_path):
+    """Test handling of invalid files."""
+    bad_file = tmp_path / "bad_test.py"
+    bad_file.write_text("def invalid syntax:")
+
+    result = metrics_collector.analyse_test_file(bad_file)
+
+    assert result["num_test_cases"] == 0
+    assert result["num_assertions"] == 0
+    assert result["complexity"] == 0
+
+
+def test_complex_test_patterns(metrics_collector, tmp_path):
+    """Test analysis of complex test patterns."""
+    content = """
+class TestClass:
+    def setUp(self):
+        self.value = 42
+        
+    def test_value(self):
+        assert self.value == 42
+        if self.value > 0:
+            assert True
+        else:
+            assert False
+            
+    def test_other(self):
+        assert True
+        
+    def tearDown(self):
+        self.value = None
+"""
+    file_path = tmp_path / "test_complex.py"
+    file_path.write_text(content)
+
+    result = metrics_collector.analyse_test_file(file_path)
+
+    assert result["num_test_cases"] == 2
+    assert result["num_assertions"] == 4
+    assert result["has_setup"] is True
+    assert result["has_teardown"] is True
+    assert result["complexity"] == 3

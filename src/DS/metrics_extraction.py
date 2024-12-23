@@ -501,3 +501,129 @@ def process_files_parallel(
                 results.append({"file_path": str(path), "error": str(e)})
 
     return results
+
+
+"""
+This script analyses Python test files within cloned repositories to extract
+relevant metrics and perform various analyses.
+"""
+
+import ast
+import hashlib
+from pathlib import Path
+from typing import Dict, List, Any, Union, Optional, Tuple
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
+import pandas as pd
+from loguru import logger
+from mccabe import PathGraphingAstVisitor
+
+from utils.git_utils import get_working_directory_or_git_root
+
+BATCH_SIZE = 100
+
+
+class MetricsCollector:
+    """Collects and processes code metrics from Python files."""
+
+    def __init__(self, enable_caching: bool = True):
+        self.enable_caching = enable_caching
+        self._cache = {}
+
+    def get_file_hash(self, file_path: Path) -> str:
+        """Generate hash of file contents for caching."""
+        with open(file_path, "rb") as f:
+            return hashlib.md5(f.read()).hexdigest()
+
+    def analyse_test_file(self, file_path: Path) -> Dict[str, Any]:
+        """Analyse a Python test file with caching support."""
+        if self.enable_caching:
+            try:
+                file_hash = self.get_file_hash(file_path)
+                if file_hash in self._cache:
+                    return self._cache[file_hash]
+            except Exception as e:
+                logger.error(f"Cache error for {file_path}: {e}")
+
+        result = {
+            "file_path": file_path,
+            "num_test_cases": 0,
+            "num_assertions": 0,
+            "has_setup": False,
+            "has_teardown": False,
+            "complexity": 0,
+        }
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                tree = ast.parse(f.read())
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    if node.name.startswith("test_"):
+                        result["num_test_cases"] += 1
+                        result["complexity"] += 1
+                        self._process_test_function(node, result)
+                    elif node.name in ("setUp", "tearDown"):
+                        result[f"has_{node.name.lower()}"] = True
+
+            if self.enable_caching:
+                self._cache[file_hash] = result
+
+        except Exception as e:
+            logger.error(f"Error analyzing {file_path}: {e}")
+
+        return result
+
+    def _process_test_function(self, node: ast.FunctionDef, result: Dict[str, Any]):
+        """Extract metrics from a test function."""
+        for child in ast.walk(node):
+            if isinstance(child, ast.If):
+                result["complexity"] += 1
+            elif isinstance(child, ast.Assert):
+                result["num_assertions"] += 1
+            elif (
+                isinstance(child, ast.Expr)
+                and isinstance(child.value, ast.Call)
+                and isinstance(child.value.func, ast.Name)
+                and child.value.func.id == "assert"
+            ):
+                result["num_assertions"] += 1
+
+
+def process_files_parallel(
+    files: List[Path], num_workers: Optional[int] = None
+) -> List[Dict[str, Any]]:
+    """Process multiple files in parallel."""
+    if num_workers is None:
+        num_workers = os.cpu_count() or 1
+
+    collector = MetricsCollector()
+    results = []
+
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        future_to_path = {
+            executor.submit(collector.analyse_test_file, path): path for path in files
+        }
+
+        for future in as_completed(future_to_path):
+            try:
+                result = future.result()
+                results.append(result)
+            except Exception as e:
+                path = future_to_path[future]
+                logger.error(f"Failed to process {path}: {e}")
+                results.append(
+                    {
+                        "file_path": str(path),
+                        "num_test_cases": 0,
+                        "num_assertions": 0,
+                        "has_setup": False,
+                        "has_teardown": False,
+                        "complexity": 0,
+                        "error": str(e),
+                    }
+                )
+
+    return results
