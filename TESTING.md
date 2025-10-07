@@ -1,6 +1,8 @@
 # Testing Documentation
 
-This document provides guidelines for writing, organizing, and running tests for the project. Follow these instructions to ensure comprehensive and consistent testing coverage.
+This document provides guidelines for writing, organising, and running tests 
+for the project. Follow these instructions to ensure comprehensive and 
+consistent testing coverage.
 
 ---
 
@@ -23,10 +25,14 @@ This document provides guidelines for writing, organizing, and running tests for
 
 ## Testing Principles
 
-- **Test Early and Often:** Write tests alongside development to catch bugs as soon as possible.
-- **Automate Testing:** Automate as much as possible to ensure consistent execution.
-- **Test for Edge Cases:** Validate edge cases and unusual inputs to ensure robustness.
-- **Make Tests Readable:** Write clear, descriptive tests to make debugging easier.
+- **Test Early and Often:** Write tests alongside development to catch bugs 
+  as soon as possible.
+- **Automate Testing:** Automate as much as possible to ensure consistent 
+  execution.
+- **Test for Edge Cases:** Validate edge cases and unusual inputs to ensure 
+  robustness.
+- **Make Tests Readable:** Write clear, descriptive tests to make debugging 
+  easier.
 
 ---
 
@@ -35,7 +41,8 @@ This document provides guidelines for writing, organizing, and running tests for
 ### Unit Tests
 
 - **Definition:** Test individual functions or methods in isolation.
-- **Purpose:** Ensure that each function produces the expected output for a given input.
+- **Purpose:** Ensure that each function produces the expected output for a 
+  given input.
 - **Examples:**
   - Testing a string manipulation function.
   - Validating arithmetic operations in a class.
@@ -61,7 +68,7 @@ This document provides guidelines for writing, organizing, and running tests for
 - **Definition:** Test previously fixed bugs to ensure they do not reappear.
 - **Purpose:** Maintain stability as new changes are introduced.
 - **Examples:**
-  - Re-testing a bug fix in data serialization logic.
+  - Re-testing a bug fix in data serialisation logic.
   - Running tests from previous releases.
 
 ---
@@ -76,19 +83,6 @@ Follow a standard structure for each test case:
 2. **Execution:** Call the function or feature to test.
 3. **Verification:** Assert that the output matches the expected result.
 4. **Teardown (if needed):** Clean up resources or reset states.
-
-### Checklist for Tests
-
-- **Inputs:**
-  -
-- **Outputs:**
-  -
-- **Performance:**
-  -
-- **Integration:**
-  -
-- **Error Handling:**
-  -
 
 ---
 
