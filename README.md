@@ -240,8 +240,10 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
    #### Features
    - Command-Line Arguments:
 
-       `--logfile-path`: Specify the path to the logfile. If not provided, it defaults to `supabase/write_to_db.log`
-   in the working directory ( if the current directory is not within a Git repository) or the git root ( the path to
+       `--logfile-path`: Specify the path to the logfile. If not provided, 
+   it defaults to `supabase/write_to_db.log`
+   in the working directory ( if the current directory is not within a Git 
+     repository) or the git root ( the path to
    the top-level directory of the current Git repository).
    Example:
    ```
@@ -251,7 +253,8 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
      - `SUPABASE_URL`: The URL of the Supabase instance.
      - `SUPABASE_KEY`: The API key for accessing the Supabase instance.
 
-     Your `.env` file should look more-or-less like this depending on your actual values for these two environment
+     Your `.env` file should look more-or-less like this depending on your 
+   actual values for these two environment
    variables.
    ```
      SUPABASE_URL=https://your-supabase-url.supabase.co
@@ -276,6 +279,36 @@ The pre-commit hooks are run automatically by `git`. They can also be run intera
     ```
    python script.py --clone-dir /path/to/cloned_repos
    ```
+   
+### Supabase - migrations
+#### Overview 
+Sequential SQL migrations that build a repository analysis database for 
+tracking code repositories, detecting test frameworks, and extracting code 
+metrics. Run migrations 001-007 in order.
+
+'001_initial_repositories.sql' --> Creates the base repositories table with URL 
+tracking, clone status, and data quality flags.
+
+'002_add_cloning_tracking.sql' --> Adds repository_cloning table for clone 
+operations and 'cloned_files' table to store discovered file paths.
+
+'003_add_file_analysis.sql' --> Adds test detection flag 
+('has_test_in_name_or_path') and processing timestamp to track analysis progress.
+
+'004_add_last_commit_hash.sql' --> Adds commit hash tracking to 
+'repository_cloning' for version control.
+
+'005_add_test_framework_detection_columns.sql' --> Adds comprehensive test 
+framework detection for 11+ frameworks (PHPUnit, Jest, Pytest, JUnit, etc.) 
+with detection method tracking.
+
+'006_add_language_detection.sql' --> Adds programming language detection 
+based on file extensions with processing timestamps.
+
+'007_metrics_extraction.sql' --> Adds code metrics columns including lines of 
+code, function counts, test counts, and complexity scores.
+
+
 
 
 ## Related projects
